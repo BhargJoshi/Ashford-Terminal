@@ -53,14 +53,22 @@ body{
 }
 ::selection{ background:var(--macro); color:#fff; }
 
+@media (prefers-reduced-motion: reduce){
+  *,*::before,*::after{ animation-duration:0.001ms !important; transition-duration:0.001ms !important; }
+}
+
 a{ color:var(--macro); }
 button{ font-family:inherit; }
 :focus-visible{ outline:2px solid var(--macro); outline-offset:1px; }
 
 /* ============================================================
-   PRIMITIVES & BADGES
+   PRIMITIVES
    ============================================================ */
 .mono{ font-family:var(--font-mono); }
+.eyebrow{
+  font-size:10.5px; font-weight:600; letter-spacing:0.9px; text-transform:uppercase;
+  color:var(--text-dim);
+}
 .hidden{ display:none !important; }
 
 .pill{
@@ -74,6 +82,7 @@ button{ font-family:inherit; }
 .pill.pill--live::before{ content:''; width:6px; height:6px; border-radius:50%; background:var(--bull); box-shadow:0 0 0 2px var(--bull-dim); }
 .pill.pill--parsing{ color:var(--warn); border-color:rgba(232,197,71,0.35); background:var(--warn-dim); }
 .pill.pill--parsing::before{ content:''; width:6px; height:6px; border-radius:50%; background:var(--warn); animation:pulse 1s ease-in-out infinite; }
+.pill.pill--error{ color:var(--bear); border-color:rgba(242,69,61,0.35); background:var(--bear-dim); }
 @keyframes pulse{ 0%,100%{opacity:1;} 50%{opacity:0.35;} }
 
 .badge{
@@ -87,14 +96,15 @@ button{ font-family:inherit; }
 .badge[data-tone="macro"]{ color:var(--macro); background:var(--macro-dim); border-color:rgba(67,128,250,0.3); }
 .badge[data-tone="warning"]{ color:var(--warn); background:var(--warn-dim); border-color:rgba(232,197,71,0.3); }
 .badge[data-tone="none"]{ color:var(--text-faint); background:transparent; border-color:var(--border); }
+
 .badge[data-imp="High"]{ color:#0B0F14; background:var(--warn); border-color:var(--warn); }
 .badge[data-imp="Medium"]{ color:var(--warn); background:var(--warn-dim); border-color:rgba(232,197,71,0.35); }
 .badge[data-imp="Low"]{ color:var(--text-faint); background:transparent; border-color:var(--border); }
 
 .chip{
-  display:inline-block; font-size:10.5px; font-weight:500; color:var(--text-dim);
+  display:inline-block; max-width:150px; font-size:10.5px; font-weight:500; color:var(--text-dim);
   background:var(--bg-inset); border:1px solid var(--border-soft); border-radius:var(--radius);
-  padding:2px 7px; margin:2px 4px 2px 0;
+  padding:2px 7px; margin:2px 4px 2px 0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; vertical-align:top;
 }
 
 /* ============================================================
@@ -104,7 +114,8 @@ button{ font-family:inherit; }
 
 .term-header{
   display:flex; align-items:flex-start; justify-content:space-between; gap:16px;
-  padding-bottom:14px; margin-bottom:14px; border-bottom:1px solid var(--border); flex-wrap:wrap;
+  padding-bottom:14px; margin-bottom:14px; border-bottom:1px solid var(--border);
+  flex-wrap:wrap;
 }
 .brand{ display:flex; flex-direction:column; gap:2px; }
 .brand-name{ font-size:12px; font-weight:600; letter-spacing:1.4px; color:var(--text-dim); text-transform:uppercase; }
@@ -113,70 +124,46 @@ button{ font-family:inherit; }
 .status-pills{ display:flex; gap:6px; flex-wrap:wrap; justify-content:flex-end; }
 .live-clock{ font-family:var(--font-mono); font-size:11px; color:var(--text-faint); letter-spacing:0.5px; }
 
-/* ============================================================
-   RESEARCH INBOX (REDESIGN)
-   ============================================================ */
-.inbox-container {
-  background: var(--bg-inset); border: 1px solid var(--border); border-radius: var(--radius);
-  padding: 12px; margin-bottom: 16px; display: flex; flex-direction: column; gap: 8px;
+.control-row{
+  display:flex; align-items:stretch; gap:8px; margin-bottom:10px;
 }
-.inbox-header-row {
-  display: flex; justify-content: space-between; align-items: center;
+.paste-wrap{
+  flex:1; display:flex; align-items:flex-start; gap:8px;
+  background:var(--card); border:1px solid var(--border); border-radius:var(--radius);
+  padding:9px 12px; transition:border-color .15s ease;
 }
-.inbox-title {
-  font-size: 11px; font-weight: 600; letter-spacing: 1px; text-transform: uppercase; color: var(--text-dim);
+.paste-wrap:focus-within{ border-color:var(--macro); }
+.prompt-glyph{ font-family:var(--font-mono); color:var(--macro); font-size:14px; line-height:1.5; user-select:none; }
+#pasteZone{
+  flex:1; resize:vertical; min-height:20px; max-height:220px;
+  background:transparent; border:none; outline:none; color:var(--text);
+  font-family:var(--font-mono); font-size:12.5px; line-height:1.5;
 }
-.inbox-controls {
-  display: flex; gap: 8px; align-items: center;
-}
-.inbox-dropzone {
-  position: relative; border: 1px dashed var(--border-soft); border-radius: var(--radius);
-  background: var(--card); transition: all 0.2s ease; display: flex; flex-direction: column;
-}
-.inbox-dropzone.drag-active {
-  border-color: var(--macro); background: var(--macro-dim);
-}
-.inbox-textarea {
-  width: 100%; min-height: 80px; max-height: 250px; background: transparent; border: none;
-  outline: none; color: var(--text); font-family: var(--font-mono); font-size: 12px;
-  line-height: 1.5; padding: 12px; resize: vertical;
-}
-.inbox-textarea::placeholder { color: var(--text-faint); font-family: var(--font-sans); }
-.inbox-overlay-text {
-  position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
-  pointer-events: none; font-size: 12px; color: var(--macro); font-weight: 500;
-  opacity: 0; transition: opacity 0.2s ease; background: var(--card); padding: 8px 16px; border-radius: var(--radius);
-}
-.inbox-dropzone.drag-active .inbox-overlay-text { opacity: 1; }
-.inbox-dropzone.drag-active .inbox-textarea { opacity: 0.2; }
+#pasteZone::placeholder{ color:var(--text-faint); font-family:var(--font-sans); }
 
-.btn {
-  font-size: 11px; font-weight: 600; letter-spacing: 0.4px; text-transform: uppercase;
-  background: var(--card); color: var(--text-dim); border: 1px solid var(--border);
-  border-radius: var(--radius); padding: 6px 14px; cursor: pointer; white-space: nowrap;
-  transition: all .15s ease;
+.btn{
+  font-size:11px; font-weight:600; letter-spacing:0.4px; text-transform:uppercase;
+  background:var(--card); color:var(--text-dim); border:1px solid var(--border);
+  border-radius:var(--radius); padding:0 14px; cursor:pointer; white-space:nowrap;
+  transition:border-color .15s ease, color .15s ease, background .15s ease;
 }
-.btn:hover { border-color: var(--macro); color: var(--text); }
-.btn.primary { background: var(--macro); color: #fff; border-color: var(--macro); }
-.btn.primary:hover { background: #326bea; }
+.btn:hover{ border-color:var(--macro); color:var(--text); }
+.btn-icon{
+  width:36px; flex:0 0 36px; display:flex; align-items:center; justify-content:center;
+  background:var(--card); color:var(--text-dim); border:1px solid var(--border);
+  border-radius:var(--radius); cursor:pointer; font-size:15px;
+  transition:border-color .15s ease, color .15s ease, transform .15s ease;
+}
+.btn-icon:hover{ border-color:var(--macro); color:var(--text); }
+.btn-icon.spin{ animation:spin .6s linear infinite; }
+@keyframes spin{ to{ transform:rotate(360deg); } }
 
-/* ============================================================
-   EXTRACTION SUMMARY BANNER
-   ============================================================ */
-.summary-banner {
-  display: flex; flex-direction: column; gap: 8px; background: var(--card);
-  border: 1px solid var(--border); border-radius: var(--radius); padding: 12px 14px; margin-bottom: 12px;
+.error-banner{
+  display:flex; align-items:center; justify-content:space-between; gap:12px;
+  background:var(--bear-dim); border:1px solid rgba(242,69,61,0.35); color:var(--bear);
+  border-radius:var(--radius); padding:8px 14px; margin-bottom:12px; font-size:12px;
 }
-.summary-banner.success { border-left: 3px solid var(--bull); }
-.summary-banner.warning { border-left: 3px solid var(--warn); }
-.summary-banner.error { border-left: 3px solid var(--bear); }
-.summary-header { display: flex; justify-content: space-between; align-items: center; }
-.summary-title { font-size: 12px; font-weight: 600; display: flex; align-items: center; gap: 6px; }
-.summary-close { background: none; border: none; color: var(--text-faint); cursor: pointer; font-size: 16px; line-height: 1; }
-.summary-close:hover { color: var(--text); }
-.summary-content { font-family: var(--font-mono); font-size: 11px; color: var(--text-dim); display: flex; gap: 16px; flex-wrap: wrap; }
-.summary-stat { display: flex; flex-direction: column; gap: 2px; }
-.summary-stat-label { font-size: 9px; text-transform: uppercase; color: var(--text-faint); letter-spacing: 0.5px;}
+.error-banner button{ background:transparent; border:none; color:var(--bear); cursor:pointer; font-size:15px; line-height:1; }
 
 .section-label{
   font-size:10.5px; font-weight:600; letter-spacing:1px; text-transform:uppercase;
@@ -186,23 +173,36 @@ button{ font-family:inherit; }
 .section-label:first-of-type{ margin-top:4px; }
 
 /* ============================================================
-   DASHBOARD COMPONENTS
+   MACRO STATUS STRIP
    ============================================================ */
-.macro-grid{ display:grid; grid-template-columns:repeat(6, 1fr); gap:1px; background:var(--border); border:1px solid var(--border); border-radius:var(--radius); overflow:hidden; }
-.kpi-tile{ background:var(--card); padding:10px 12px; border-left:3px solid var(--macro); display:flex; flex-direction:column; gap:4px; min-height:88px; transition:background .15s ease; }
+.macro-grid{
+  display:grid; grid-template-columns:repeat(6, 1fr); gap:1px;
+  background:var(--border); border:1px solid var(--border); border-radius:var(--radius); overflow:hidden;
+}
+.kpi-tile{
+  background:var(--card); padding:10px 12px; border-left:3px solid var(--macro);
+  display:flex; flex-direction:column; gap:4px; min-height:88px;
+  transition:background .15s ease;
+}
 .kpi-tile:hover{ background:var(--card-raised); }
 .kpi-tile.no-data{ border-left-color:var(--border); opacity:0.5; }
-.kpi-label{ font-size:9.5px; font-weight:600; letter-spacing:0.6px; text-transform:uppercase; color:var(--text-dim); }
+.kpi-label{ font-size:9.5px; font-weight:600; letter-spacing:0.6px; text-transform:uppercase; color:var(--text-dim); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .kpi-value{ font-family:var(--font-mono); font-size:19px; font-weight:600; color:var(--text); line-height:1.1; }
 .kpi-meta{ display:flex; align-items:center; justify-content:space-between; font-family:var(--font-mono); font-size:10.5px; color:var(--text-faint); }
 .kpi-arrow{ font-size:11px; }
 .kpi-arrow.up{ color:var(--bull); }
 .kpi-arrow.down{ color:var(--bear); }
 .kpi-arrow.flat{ color:var(--text-faint); }
-.kpi-cons{ font-size:9.5px; color:var(--text-faint); font-family:var(--font-mono); }
+.kpi-cons{ font-size:9.5px; color:var(--text-faint); font-family:var(--font-mono); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 
+/* ============================================================
+   MARKET BIAS STRIP
+   ============================================================ */
 .bias-grid{ display:grid; grid-template-columns:repeat(5, 1fr); gap:var(--gap); }
-.bias-card{ background:var(--card); border:1px solid var(--border); border-top:3px solid var(--neutral); border-radius:var(--radius); padding:13px 14px; display:flex; flex-direction:column; gap:9px; }
+.bias-card{
+  background:var(--card); border:1px solid var(--border); border-top:3px solid var(--neutral);
+  border-radius:var(--radius); padding:13px 14px; display:flex; flex-direction:column; gap:9px;
+}
 .bias-card.no-data{ border-top-color:var(--border); opacity:0.5; }
 .bias-card[data-bias="bullish"]{ border-top-color:var(--bull); }
 .bias-card[data-bias="bearish"]{ border-top-color:var(--bear); }
@@ -221,17 +221,22 @@ button{ font-family:inherit; }
 .bias-k{ flex:0 0 52px; color:var(--text-faint); font-size:9.5px; font-weight:600; letter-spacing:0.4px; text-transform:uppercase; padding-top:1px; }
 .bias-v{ color:var(--text-dim); flex:1; }
 
+/* ============================================================
+   PANEL CHROME (shared by main + bottom grids)
+   ============================================================ */
 .main-grid{ display:grid; grid-template-columns:1fr 1fr 1.35fr; gap:var(--gap); align-items:start; }
 .bottom-grid{ display:grid; grid-template-columns:1.3fr 1.15fr 0.85fr; gap:var(--gap); align-items:start; }
+
 .panel{ background:var(--card); border:1px solid var(--border); border-radius:var(--radius); display:flex; flex-direction:column; overflow:hidden; }
 .panel-head{ display:flex; align-items:center; justify-content:space-between; padding:10px 13px; border-bottom:1px solid var(--border); }
 .panel-title{ font-size:10.5px; font-weight:600; letter-spacing:0.8px; text-transform:uppercase; color:var(--text-dim); }
 .panel-count{ font-family:var(--font-mono); font-size:10px; color:var(--text-faint); }
 .panel-body{ padding:6px; max-height:520px; overflow-y:auto; }
 .panel-body.no-pad{ padding:0; }
+
 .empty-state{ padding:28px 16px; text-align:center; color:var(--text-faint); font-size:11.5px; }
 
-/* Timeline, Narratives, Tables CSS unchanged from base layout */
+/* ---- Events timeline ---- */
 .timeline{ position:relative; }
 .event-item{ position:relative; display:flex; gap:10px; padding:9px 8px; border-radius:var(--radius); }
 .event-item:hover{ background:var(--card-raised); }
@@ -243,6 +248,7 @@ button{ font-family:inherit; }
 .event-headline{ font-size:12px; font-weight:500; color:var(--text); margin-bottom:2px; }
 .event-why{ font-size:11px; color:var(--text-dim); margin-bottom:5px; }
 
+/* ---- Narratives ---- */
 .narrative-grid{ display:flex; flex-direction:column; gap:6px; }
 .narrative-card{ border:1px solid var(--border-soft); border-radius:var(--radius); padding:9px 10px; background:var(--bg-inset); }
 .narrative-top{ display:flex; align-items:center; justify-content:space-between; margin-bottom:6px; }
@@ -256,23 +262,39 @@ button{ font-family:inherit; }
 .narrative-fill[data-tone="warning"]{ background:var(--warn); }
 .narrative-assets{ font-size:10.5px; color:var(--text-faint); }
 
+/* ---- Tables ---- */
 .table-toolbar{ display:flex; gap:8px; padding:8px; border-bottom:1px solid var(--border); }
-.search-input{ flex:1; background:var(--bg-inset); border:1px solid var(--border); color:var(--text); border-radius:var(--radius); padding:6px 9px; font-size:11.5px; font-family:var(--font-sans); outline:none; }
+.search-input{
+  flex:1; background:var(--bg-inset); border:1px solid var(--border); color:var(--text);
+  border-radius:var(--radius); padding:6px 9px; font-size:11.5px; font-family:var(--font-sans); outline:none;
+}
 .search-input:focus{ border-color:var(--macro); }
-.imp-filter{ background:var(--bg-inset); border:1px solid var(--border); color:var(--text-dim); border-radius:var(--radius); padding:6px 8px; font-size:11px; font-family:var(--font-sans); outline:none; }
+.imp-filter{
+  background:var(--bg-inset); border:1px solid var(--border); color:var(--text-dim);
+  border-radius:var(--radius); padding:6px 8px; font-size:11px; font-family:var(--font-sans); outline:none;
+}
 .data-table{ width:100%; border-collapse:collapse; font-size:11.5px; }
-.data-table th{ text-align:left; font-size:9.5px; font-weight:600; letter-spacing:0.5px; text-transform:uppercase; color:var(--text-faint); padding:7px 10px; border-bottom:1px solid var(--border); position:sticky; top:0; background:var(--card); }
+.data-table th{
+  text-align:left; font-size:9.5px; font-weight:600; letter-spacing:0.5px; text-transform:uppercase;
+  color:var(--text-faint); padding:7px 10px; border-bottom:1px solid var(--border); cursor:pointer;
+  user-select:none; white-space:nowrap; position:sticky; top:0; background:var(--card);
+}
+.data-table th:hover{ color:var(--text-dim); }
+.data-table th .sort-ind{ font-size:9px; margin-left:3px; opacity:0.5; }
 .data-table td{ padding:7px 10px; border-bottom:1px solid var(--border-soft); vertical-align:top; color:var(--text-dim); }
 .data-table tbody tr:hover{ background:var(--card-raised); }
-.data-table td.mono{ font-family:var(--font-mono); }
+.data-table td.mono, .data-table .mono{ font-family:var(--font-mono); }
 .data-table td.strong{ color:var(--text); font-weight:500; }
 
+/* ---- Asset driver matrix ---- */
 .matrix-asset{ color:var(--text); font-weight:600; white-space:nowrap; }
 .driver-list{ font-size:11px; color:var(--text-dim); }
 
+/* ---- Institutional positioning ---- */
 .pos-list{ display:flex; flex-direction:column; }
 .pos-row{ display:flex; align-items:center; justify-content:space-between; padding:8px 13px; border-bottom:1px solid var(--border-soft); }
-.pos-label{ font-size:10.5px; color:var(--text-dim); font-weight:500; text-transform:uppercase; font-size:10px; }
+.pos-row:last-child{ border-bottom:none; }
+.pos-label{ font-size:10.5px; color:var(--text-dim); font-weight:500; letter-spacing:0.2px; text-transform:uppercase; font-size:10px; }
 .pos-value{ display:flex; align-items:center; gap:7px; }
 .pos-dot{ width:7px; height:7px; border-radius:50%; flex:0 0 7px; }
 .pos-dot[data-tone="bullish"]{ background:var(--bull); box-shadow:0 0 0 3px var(--bull-dim); }
@@ -280,14 +302,33 @@ button{ font-family:inherit; }
 .pos-dot[data-tone="neutral"]{ background:var(--neutral); box-shadow:0 0 0 3px var(--neutral-dim); }
 .pos-dot[data-tone="macro"]{ background:var(--macro); box-shadow:0 0 0 3px var(--macro-dim); }
 .pos-dot[data-tone="warning"]{ background:var(--warn); box-shadow:0 0 0 3px var(--warn-dim); }
-.pos-dot[data-tone="none"]{ background:var(--text-faint); }
+.pos-dot[data-tone="none"]{ background:var(--text-faint); box-shadow:none; }
 .pos-text{ font-family:var(--font-mono); font-size:11px; color:var(--text); }
+
 .gauge-wrap{ padding:14px 16px 4px; text-align:center; border-bottom:1px solid var(--border); }
 .gauge-score{ font-family:var(--font-mono); font-size:22px; font-weight:600; margin-top:2px; }
 .gauge-caption{ font-size:9.5px; color:var(--text-faint); letter-spacing:0.3px; margin-top:2px; }
-.gauge-labels{ display:flex; justify-content:space-between; font-size:9px; color:var(--text-faint); text-transform:uppercase; padding:0 6px; margin-top:-4px; }
+.gauge-labels{ display:flex; justify-content:space-between; font-size:9px; color:var(--text-faint); letter-spacing:0.4px; text-transform:uppercase; padding:0 6px; margin-top:-4px; }
 
-.term-footer{ margin-top:26px; padding-top:14px; border-top:1px solid var(--border-soft); display:flex; justify-content:space-between; font-size:10px; color:var(--text-faint); }
+.term-footer{ margin-top:26px; padding-top:14px; border-top:1px solid var(--border-soft); display:flex; justify-content:space-between; font-size:10px; color:var(--text-faint); letter-spacing:0.3px; flex-wrap:wrap; gap:6px; }
+
+/* ============================================================
+   RESPONSIVE
+   ============================================================ */
+@media (max-width:1400px){
+  .macro-grid{ grid-template-columns:repeat(4,1fr); }
+  .bias-grid{ grid-template-columns:repeat(3,1fr); }
+}
+@media (max-width:1100px){
+  .main-grid, .bottom-grid{ grid-template-columns:1fr; }
+}
+@media (max-width:720px){
+  .macro-grid{ grid-template-columns:repeat(2,1fr); }
+  .bias-grid{ grid-template-columns:repeat(2,1fr); }
+  .term-header{ flex-direction:column; }
+  .header-right{ align-items:flex-start; }
+  .status-pills{ justify-content:flex-start; }
+}
 </style>
 </head>
 <body>
@@ -304,29 +345,18 @@ button{ font-family:inherit; }
     </div>
   </header>
 
-  <!-- Redesigned Ingestion Pipeline: Research Inbox -->
-  <div class="inbox-container" id="inboxContainer">
-    <div class="inbox-header-row">
-      <span class="inbox-title">Research Inbox</span>
-      <div class="inbox-controls">
-        <input type="file" id="fileUpload" class="hidden" accept=".txt,.csv,.md,.html" multiple>
-        <button class="btn" onclick="document.getElementById('fileUpload').click()">+ Upload File</button>
-        <button class="btn primary" id="processBtn">Process Intelligence</button>
-      </div>
-    </div>
-    <div class="inbox-dropzone" id="dropzone">
-      <div class="inbox-overlay-text">Drop Files to Ingest</div>
-      <textarea id="pasteZone" class="inbox-textarea" placeholder="Paste market research, news articles, HTML tables, or drag-and-drop documents here..."></textarea>
-    </div>
+  <div class="control-row">
+    <label class="paste-wrap" for="pasteZone">
+      <span class="prompt-glyph">▍</span>
+      <textarea id="pasteZone" rows="1" placeholder="Paste raw market intelligence to refresh the terminal — parses automatically, no submit needed…"></textarea>
+    </label>
+    <button class="btn-icon" id="retryBtn" title="Re-run parse on current input" aria-label="Re-run parse">⟳</button>
+    <button class="btn" id="sampleBtn" title="Load sample dataset to preview the layout">Load Sample</button>
   </div>
 
-  <!-- Extraction Summary (Graceful Degradation UI) -->
-  <div class="summary-banner hidden" id="summaryBanner">
-    <div class="summary-header">
-      <div class="summary-title" id="summaryTitle">Extraction Summary</div>
-      <button class="summary-close" id="summaryClose">×</button>
-    </div>
-    <div class="summary-content" id="summaryContent"></div>
+  <div class="error-banner hidden" id="errorBanner">
+    <span id="errorText"></span>
+    <button id="errorDismiss" aria-label="Dismiss">×</button>
   </div>
 
   <div class="section-label">Macro Status</div>
@@ -378,119 +408,79 @@ button{ font-family:inherit; }
   </section>
 
   <footer class="term-footer">
-    <span>Pipeline Architecture: Local Normalization + Modular Extraction Agents</span>
-    <span>Ashford Capital — internal use</span>
+    <span>Parsed live via Claude · nothing leaves this session except the extraction call</span>
+    <span id="footerRight">Ashford Capital — internal use</span>
   </footer>
 
 </div>
 <script>
 /* ============================================================
-   CONFIG — Schema definitions
+   CONFIG — fixed schema definitions (order matters, matches spec)
    ============================================================ */
 const MACRO_DEFS = [
-  {id:'fed', label:'Fed Funds Rate'}, {id:'cpiH', label:'Headline CPI'}, {id:'cpiC', label:'Core CPI'},
-  {id:'ppiH', label:'Headline PPI'}, {id:'ppiC', label:'Core PPI'}, {id:'real', label:'Real Rate'},
-  {id:'y2', label:'2Y Yield'}, {id:'y10', label:'10Y Yield'}, {id:'dxy', label:'DXY'},
-  {id:'wti', label:'WTI'}, {id:'brent', label:'Brent'}, {id:'vix', label:'VIX'}
+  {id:'fed',   label:'Fed Funds Rate'},
+  {id:'cpiH',  label:'Headline CPI'},
+  {id:'cpiC',  label:'Core CPI'},
+  {id:'ppiH',  label:'Headline PPI'},
+  {id:'ppiC',  label:'Core PPI'},
+  {id:'real',  label:'Real Rate'},
+  {id:'y2',    label:'2Y Yield'},
+  {id:'y10',   label:'10Y Yield'},
+  {id:'dxy',   label:'DXY'},
+  {id:'wti',   label:'WTI'},
+  {id:'brent', label:'Brent'},
+  {id:'vix',   label:'VIX'},
 ];
 const ASSET_DEFS = [
-  {id:'gold', label:'Gold'}, {id:'nifty', label:'Nifty'}, {id:'usEq', label:'US Equities'},
-  {id:'usBonds', label:'US Bonds'}, {id:'btc', label:'Bitcoin'}
+  {id:'gold',     label:'Gold'},
+  {id:'nifty',    label:'Nifty'},
+  {id:'usEq',     label:'US Equities'},
+  {id:'usBonds',  label:'US Bonds'},
+  {id:'btc',      label:'Bitcoin'},
 ];
 const POS_DEFS = [
-  {id:'risk', label:'Risk On / Risk Off'}, {id:'inflation', label:'Inflation Theme'},
-  {id:'growth', label:'Growth Theme'}, {id:'liquidity', label:'Liquidity Theme'},
-  {id:'fed', label:'Fed Theme'}, {id:'dollar', label:'Dollar Theme'},
-  {id:'bond', label:'Bond Theme'}, {id:'gold', label:'Gold Theme'}
+  {id:'risk',      label:'Risk On / Risk Off'},
+  {id:'inflation', label:'Inflation Theme'},
+  {id:'growth',    label:'Growth Theme'},
+  {id:'liquidity', label:'Liquidity Theme'},
+  {id:'fed',       label:'Fed Theme'},
+  {id:'dollar',    label:'Dollar Theme'},
+  {id:'bond',      label:'Bond Theme'},
+  {id:'gold',      label:'Gold Theme'},
 ];
 
 /* ============================================================
-   STATE MANAGEMENT
+   STATE
    ============================================================ */
-let dataset = { macro:{}, bias:{}, matrix:{}, pos:{}, events:[], narratives:[], watchlist:[] };
+let dataset = null;       // normalized dataset currently rendered, or null
+let isDemo = false;
 let isParsing = false;
+let lastUpdatedAt = null; // Date
+let lastWarnings = [];
 
-const watchlistState = { query:'', imp:'' };
-const macroTableState = { query:'' };
+const watchlistState = { query:'', imp:'', sortKey:null, sortDir:'asc' };
+const macroTableState = { query:'', sortKey:null, sortDir:'asc' };
 
+/* ============================================================
+   UTILITIES
+   ============================================================ */
 function $(sel, root){ return (root||document).querySelector(sel); }
-function esc(v){ return (v===null||v===undefined)?'':String(v).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
-function getArrow(d) {
-  if (d === 'up') return '<span class="kpi-arrow up">▲</span>';
-  if (d === 'down') return '<span class="kpi-arrow down">▼</span>';
-  return '<span class="kpi-arrow flat">−</span>';
+function esc(v){
+  if(v===null||v===undefined) return '';
+  return String(v).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 }
+function debounce(fn, ms){ let t; return (...a)=>{ clearTimeout(t); t=setTimeout(()=>fn(...a), ms); }; }
+function assetLabel(id){ const a = ASSET_DEFS.find(x=>x.id===id); return a? a.label : id; }
 
 /* ============================================================
-   STAGE 1 & 2: INGESTION & NORMALIZATION MIDDLEWARE
+   TRUNCATED-JSON REPAIR
+   Handles the (occasional) case where a bounded-token model
+   response gets cut off mid-structure — trims back to the last
+   complete element and closes open brackets rather than failing.
    ============================================================ */
-// Strips structural noise, flattens HTML tables to readable text, normalizes whitespace.
-function normalizeContent(rawText) {
-  let text = rawText.trim();
-  
-  // Basic HTML detection
-  if (/<[a-z][\s\S]*>/i.test(text)) {
-    const parser = new DOMParser();
-    const doc = parser.parseFromString(text, 'text/html');
-    
-    // Convert table cells to comma separated to preserve relationships
-    doc.querySelectorAll('tr').forEach(tr => {
-      const cells = Array.from(tr.querySelectorAll('th, td')).map(td => td.textContent.trim());
-      tr.textContent = cells.join(' | ') + '\n';
-    });
-    
-    text = doc.body.textContent || "";
-  }
-  
-  // Collapse whitespace but preserve intentional line breaks
-  text = text.replace(/[ \t]+/g, ' ').replace(/\n{3,}/g, '\n\n');
-  return text;
+function stripFences(s){
+  return s.trim().replace(/^```json\s*/i,'').replace(/^```\s*/,'').replace(/```\s*$/,'').trim();
 }
-
-// Drag & Drop Handlers
-const dropzone = $('#dropzone');
-const fileUpload = $('#fileUpload');
-const pasteZone = $('#pasteZone');
-
-['dragenter', 'dragover'].forEach(eName => {
-  dropzone.addEventListener(eName, (e) => { e.preventDefault(); dropzone.classList.add('drag-active'); });
-});
-['dragleave', 'drop'].forEach(eName => {
-  dropzone.addEventListener(eName, (e) => { e.preventDefault(); dropzone.classList.remove('drag-active'); });
-});
-
-dropzone.addEventListener('drop', (e) => {
-  const dt = e.dataTransfer;
-  if (dt.files && dt.files.length) handleFiles(dt.files);
-});
-fileUpload.addEventListener('change', (e) => handleFiles(e.target.files));
-
-function handleFiles(files) {
-  Array.from(files).forEach(file => {
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      const content = e.target.result;
-      const stamp = `\n\n--- [FILE INGESTED: ${file.name}] ---\n`;
-      pasteZone.value = pasteZone.value + stamp + content;
-    };
-    reader.readAsText(file);
-  });
-}
-
-/* ============================================================
-   STAGE 3: MODULAR EXTRACTION AGENTS
-   ============================================================ */
-// Replaced monolithic prompts with modular agent orchestration.
-
-const SYS_PROMPT_MACRO = `You are a macro-data extractor for an institutional terminal. Extract ONLY explicit info.
-JSON shape: {"macro":{"fed":{"cur":"","prev":"","cons":"","d":"up|down|flat|na","note":""},"cpiH":{},"cpiC":{},"ppiH":{},"ppiC":{},"real":{},"y2":{},"y10":{},"dxy":{},"wti":{},"brent":{},"vix":{}}}`;
-
-const SYS_PROMPT_ASSETS = `You are an asset-driver and positioning extractor.
-JSON shape: {"bias":{"gold":{"b":"Bullish|Bearish|Neutral","cf":0,"pd":"","br":"","nc":""},"nifty":{},"usEq":{},"usBonds":{},"btc":{}},"matrix":{"gold":{"bd":"","brd":"","cd":"","b":"","cf":0},"nifty":{},"usEq":{},"usBonds":{},"btc":{}},"pos":{"risk":{"v":"","tone":"bullish|bearish|neutral|warning|macro"},"inflation":{},"growth":{},"liquidity":{},"fed":{},"dollar":{},"bond":{},"gold":{}}}`;
-
-const SYS_PROMPT_EVENTS = `You are an event/narrative extractor.
-JSON shape: {"events":[{"cat":"","t":"","h":"","w":"","aa":"","imp":"High|Medium|Low"}],"narratives":[{"n":"","tone":"bullish|bearish|neutral|warning|macro","s":0,"aa":""}],"watchlist":[{"t":"","e":"","f":"","imp":"High|Medium|Low","aa":""}]}`;
-
 function balanceBrackets(s){
   s = s.replace(/,\s*$/,'');
   const stack = [];
@@ -498,7 +488,9 @@ function balanceBrackets(s){
   for(let i=0;i<s.length;i++){
     const ch = s[i];
     if(inStr){
-      if(escNext){ escNext=false; } else if(ch==='\\'){ escNext=true; } else if(ch==='"'){ inStr=false; }
+      if(escNext){ escNext=false; }
+      else if(ch==='\\'){ escNext=true; }
+      else if(ch==='"'){ inStr=false; }
       continue;
     }
     if(ch==='"'){ inStr=true; continue; }
@@ -509,232 +501,604 @@ function balanceBrackets(s){
   if(inStr){ s = s.slice(0, s.lastIndexOf('"')).replace(/,\s*$/,''); }
   return s + stack.reverse().map(c=> c==='{' ? '}' : ']').join('');
 }
-
 function repairJSON(raw){
-  const s = raw.trim().replace(/^```json\s*/i,'').replace(/^```\s*/,'').replace(/```\s*$/,'').trim();
+  const s = stripFences(raw);
   try{ return JSON.parse(s); }catch(e){}
   let idx = Math.max(s.lastIndexOf(','), s.lastIndexOf('}'), s.lastIndexOf(']'));
   while(idx > 0){
     try{ return JSON.parse(balanceBrackets(s.slice(0, idx+1))); }catch(e){}
     idx = Math.max(s.lastIndexOf(',', idx-1), s.lastIndexOf('}', idx-1), s.lastIndexOf(']', idx-1));
   }
-  throw new Error('Unrecoverable schema failure');
+  throw new Error('Could not parse model output as JSON');
 }
 
-async function callAgent(system, text){
-  // Simulating API call structure as provided.
-  const resp = await fetch('[https://api.anthropic.com/v1/messages](https://api.anthropic.com/v1/messages)', {
-    method:'POST',
-    headers:{'Content-Type':'application/json'},
-    body: JSON.stringify({ model:'claude-sonnet-4-6', max_tokens:800, system, messages:[{role:'user', content:text}] })
+/* ============================================================
+   DATASET NORMALIZATION — guarantees every field render code
+   touches exists, so a partial/odd model response never throws.
+   Never fabricates: missing data stays empty, not guessed.
+   ============================================================ */
+function normalizeDataset(raw){
+  const d = raw || {};
+  const macro = {};
+  MACRO_DEFS.forEach(m=>{
+    const v = (d.macro && d.macro[m.id]) || {};
+    macro[m.id] = { cur:v.cur||'', prev:v.prev||'', cons:v.cons||'', d:v.d||'na', note:v.note||'' };
   });
-  if(!resp.ok) throw new Error('API routing failure');
-  const data = await resp.json();
-  const resText = (data.content||[]).map(b=> b.type==='text' ? b.text : '').join('\n');
-  return repairJSON(resText);
+  const bias = {};
+  ASSET_DEFS.forEach(a=>{
+    const v = (d.bias && d.bias[a.id]) || {};
+    bias[a.id] = { b:v.b||'', cf:(typeof v.cf==='number'?v.cf:null), pd:v.pd||'', br:v.br||'', nc:v.nc||'' };
+  });
+  const matrix = {};
+  ASSET_DEFS.forEach(a=>{
+    const v = (d.matrix && d.matrix[a.id]) || {};
+    matrix[a.id] = { bd:v.bd||'', brd:v.brd||'', cd:v.cd||'', b:v.b||'', cf:(typeof v.cf==='number'?v.cf:null) };
+  });
+  const pos = POS_DEFS.map(p=>{
+    const src = (d.pos && d.pos[p.id]);
+    return { id:p.id, label:p.label, v:(src&&src.v)||'', tone:(src&&src.tone)||'none' };
+  });
+  const events = Array.isArray(d.events) ? d.events.filter(e=>e && e.h).slice(0,6).map(e=>({
+    cat:e.cat||'', t:e.t||'', h:e.h||'', w:e.w||'', aa:e.aa||'', imp:e.imp||'Low'
+  })) : [];
+  const narratives = Array.isArray(d.narratives) ? d.narratives.filter(n=>n && n.n).slice(0,6).map(n=>({
+    n:n.n||'', tone:n.tone||'neutral', s:(typeof n.s==='number'?n.s:50), aa:n.aa||''
+  })) : [];
+  const watchlist = Array.isArray(d.watchlist) ? d.watchlist.filter(w=>w && w.e).slice(0,8).map(w=>({
+    t:w.t||'', e:w.e||'', f:w.f||'', imp:w.imp||'Low', aa:w.aa||''
+  })) : [];
+  const meta = {
+    source:(d.meta&&d.meta.source)||'', session:(d.meta&&d.meta.session)||'', headline:(d.meta&&d.meta.headline)||''
+  };
+  return { meta, macro, bias, matrix, pos, events, narratives, watchlist };
 }
 
 /* ============================================================
-   STAGE 4 & 5: DATA AGGREGATION & GRACEFUL DEGRADATION
+   EXTRACTION PROMPTS
+   Split into two calls so each comfortably fits a bounded
+   output budget — run in parallel, merged on return.
    ============================================================ */
-async function processPipeline(rawText) {
-  const cleanText = normalizeContent(rawText);
-  
-  // Concurrent execution - if one fails, others survive.
-  const results = await Promise.allSettled([
-    callAgent(SYS_PROMPT_MACRO, cleanText),
-    callAgent(SYS_PROMPT_ASSETS, cleanText),
-    callAgent(SYS_PROMPT_EVENTS, cleanText)
+const SYS_PROMPT_1 =
+`You are a market-data extraction engine for an institutional trading terminal. You receive raw, semi-structured market intelligence text. Extract ONLY information explicitly stated or unambiguously implied — never invent or estimate numbers. Identify content semantically; do not rely on exact wording or headers, and be robust to formatting variation.
+Respond with ONLY one valid JSON object — no markdown fences, no commentary. Use exactly this shape (fill every "{}" using the same fields as the fully-specified example in its group):
+{"meta":{"source":"","session":"","headline":""},"macro":{"fed":{"cur":"","prev":"","cons":"","d":"up|down|flat|na","note":""},"cpiH":{},"cpiC":{},"ppiH":{},"ppiC":{},"real":{},"y2":{},"y10":{},"dxy":{},"wti":{},"brent":{},"vix":{}},"bias":{"gold":{"b":"Bullish|Bearish|Neutral","cf":0,"pd":"","br":"","nc":""},"nifty":{},"usEq":{},"usBonds":{},"btc":{}},"matrix":{"gold":{"bd":"","brd":"","cd":"","b":"","cf":0},"nifty":{},"usEq":{},"usBonds":{},"btc":{}},"pos":{"risk":{"v":"","tone":"bullish|bearish|neutral|warning|macro"},"inflation":{},"growth":{},"liquidity":{},"fed":{},"dollar":{},"bond":{},"gold":{}}}
+Key meanings — macro: fed=Fed Funds Rate, cpiH=Headline CPI, cpiC=Core CPI, ppiH=Headline PPI, ppiC=Core PPI, real=Real Rate, y2=2Y Treasury Yield, y10=10Y Treasury Yield, dxy=DXY Dollar Index, wti=WTI Crude, brent=Brent Crude, vix=VIX. Assets (bias/matrix/pos.gold): gold=Gold, nifty=Nifty 50, usEq=US Equities, usBonds=US Bonds, btc=Bitcoin. pos keys: risk=Risk-On/Risk-Off stance; inflation/growth/liquidity/fed/dollar/bond/gold=that theme's current institutional read.
+Rules: if a value is absent from the text use "" for strings and null for cf — never guess a number. cf (confidence 0-100) may only be inferred from the strength of conviction language actually used for that asset (e.g. "strong conviction" -> 80-95; hedged language -> 35-55); if an asset isn't discussed at all, leave its fields "" and cf null. d reflects current vs previous, "na" if no comparison is possible. bd/brd = at most 3 short comma-separated phrases each. Preserve numbers' natural units/format (e.g. "5.50%", "103.4", "$78.20"). Every text field must be terse, 3-7 words. Output raw JSON only.`;
+
+const SYS_PROMPT_2 =
+`You are a market-event extraction engine for an institutional trading terminal. You receive raw, semi-structured market intelligence text. Extract ONLY events, narratives, and scheduled items explicitly present — never invent any. Identify content semantically, robust to formatting/wording variation.
+Respond with ONLY one valid JSON object — no markdown fences, no commentary. Shape:
+{"events":[{"cat":"","t":"","h":"","w":"","aa":"","imp":"High|Medium|Low"}],"narratives":[{"n":"","tone":"bullish|bearish|neutral|warning|macro","s":0,"aa":""}],"watchlist":[{"t":"","e":"","f":"","imp":"High|Medium|Low","aa":""}]}
+Field meanings: events.cat=1-2 word category (Fed, Inflation, Geopolitics, Earnings, Central Bank, Energy, Data...), .t=time as stated, .h=headline (max 12 words), .w=why it matters (max 15 words), .aa=comma-separated affected assets (max 4). narratives.n=short label (max 4 words e.g. "Fed Pivot"), .tone=its market-implied direction from the 5 categories given, .s=strength 0-100. watchlist = ONLY items explicitly upcoming/scheduled/tomorrow/next, never past events; .f=forecast/consensus figure if explicitly stated else "".
+Rules: events = most important market-moving items, ranked most-important-first, MAXIMUM 6. narratives = dominant macro/market narratives discussed, MAXIMUM 6. watchlist MAXIMUM 8, forward-looking only. s may be inferred from emphasis/repetition/certainty of language. If a section has no qualifying content, return an empty array for it — never invent items. Keep text terse. Output raw JSON only.`;
+
+/* ============================================================
+   API CALLS (Claude, in-browser — "Claude in Claude")
+   ============================================================ */
+async function callClaude(system, userText){
+  const controller = new AbortController();
+  const timer = setTimeout(()=>controller.abort(), 45000);
+  try{
+    const resp = await fetch('https://api.anthropic.com/v1/messages', {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      signal: controller.signal,
+      body: JSON.stringify({
+        model:'claude-sonnet-4-6',
+        max_tokens:1000,
+        system,
+        messages:[{role:'user', content:userText}]
+      })
+    });
+    if(!resp.ok) throw new Error('API error ' + resp.status);
+    const data = await resp.json();
+    const text = (data.content||[]).map(b=> b.type==='text' ? b.text : '').join('\n');
+    if(!text.trim()) throw new Error('Empty model response');
+    return repairJSON(text);
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+async function extractIntelligence(rawText, previousDataset){
+  const [r1, r2] = await Promise.allSettled([
+    callClaude(SYS_PROMPT_1, rawText),
+    callClaude(SYS_PROMPT_2, rawText),
   ]);
-
-  const summary = { success: [], failed: [] };
-
-  // Macro Module Update
-  if (results[0].status === 'fulfilled') {
-    dataset.macro = { ...dataset.macro, ...(results[0].value.macro || {}) };
-    summary.success.push('Macro Indicators');
-  } else summary.failed.push('Macro Pipeline');
-
-  // Assets Module Update
-  if (results[1].status === 'fulfilled') {
-    dataset.bias = { ...dataset.bias, ...(results[1].value.bias || {}) };
-    dataset.matrix = { ...dataset.matrix, ...(results[1].value.matrix || {}) };
-    dataset.pos = { ...dataset.pos, ...(results[1].value.pos || {}) };
-    summary.success.push('Asset Bias Matrix', 'Institutional Positioning');
-  } else summary.failed.push('Asset Pipeline');
-
-  // Events Module Update
-  if (results[2].status === 'fulfilled') {
-    const ev = results[2].value;
-    if (ev.events && ev.events.length) dataset.events = ev.events;
-    if (ev.narratives && ev.narratives.length) dataset.narratives = ev.narratives;
-    if (ev.watchlist && ev.watchlist.length) dataset.watchlist = ev.watchlist;
-    summary.success.push('Events & Narratives');
-  } else summary.failed.push('Events Pipeline');
-
-  return summary;
-}
-
-function displaySummary(summary) {
-  const banner = $('#summaryBanner');
-  const content = $('#summaryContent');
-  
-  banner.className = 'summary-banner';
-  if (summary.failed.length === 0) banner.classList.add('success');
-  else if (summary.success.length > 0) banner.classList.add('warning');
-  else banner.classList.add('error');
-
-  let html = '';
-  if (summary.success.length) {
-    html += `<div class="summary-stat"><span class="summary-stat-label" style="color:var(--bull)">Successfully Extracted</span><span>${summary.success.join(', ')}</span></div>`;
+  if(r1.status==='rejected' && r2.status==='rejected'){
+    throw new Error('Parsing failed — could not extract structured data from this input.');
   }
-  if (summary.failed.length) {
-    html += `<div class="summary-stat"><span class="summary-stat-label" style="color:var(--bear)">Degraded / Not Found</span><span>${summary.failed.join(', ')}</span></div>`;
-  }
-
-  content.innerHTML = html;
-  banner.classList.remove('hidden');
+  // Normalize each half independently — both r1.value/r2.value are always raw,
+  // freshly-fetched shapes, so normalizing them separately (rather than after
+  // merging with an already-normalized `previousDataset`) avoids ever feeding
+  // normalized shape back through raw-shape parsing (e.g. pos array vs object).
+  const n1 = r1.status==='fulfilled' ? normalizeDataset(r1.value) : null;
+  const n2 = r2.status==='fulfilled' ? normalizeDataset(r2.value) : null;
+  const base = previousDataset || normalizeDataset({});
+  const data = {
+    meta:   n1 ? n1.meta   : base.meta,
+    macro:  n1 ? n1.macro  : base.macro,
+    bias:   n1 ? n1.bias   : base.bias,
+    matrix: n1 ? n1.matrix : base.matrix,
+    pos:    n1 ? n1.pos    : base.pos,
+    events:     n2 ? n2.events     : base.events,
+    narratives: n2 ? n2.narratives : base.narratives,
+    watchlist:  n2 ? n2.watchlist  : base.watchlist,
+  };
+  const warnings = [];
+  if(r1.status==='rejected') warnings.push('macro / bias / positioning (kept previous)');
+  if(r2.status==='rejected') warnings.push('events / narratives / watchlist (kept previous)');
+  return { data, warnings };
 }
-
-$('#summaryClose').addEventListener('click', () => $('#summaryBanner').classList.add('hidden'));
 
 /* ============================================================
-   RENDER PIPELINE
+   PERSISTENCE — remembers the last parsed dataset across
+   reloads (personal, this-terminal-only; not shared).
    ============================================================ */
-function renderMacroStrip(macro) {
-  $('#macroStrip').innerHTML = MACRO_DEFS.map(def => {
-    const v = macro[def.id];
-    if (!v || !v.cur) return `<div class="kpi-tile no-data"><div class="kpi-label">${def.label}</div><div class="kpi-value" style="font-size:14px; font-weight:500;">Not available</div></div>`;
-    return `<div class="kpi-tile"><div class="kpi-meta"><span class="kpi-label">${def.label}</span>${getArrow(v.d)}</div><div class="kpi-value">${esc(v.cur)}</div><div class="kpi-cons">Prev: ${esc(v.prev) || 'N/A'}</div></div>`;
-  }).join('');
+const STORAGE_KEY = 'terminal_dataset_v1';
+async function persistDataset(ds, demo){
+  try{ await window.storage.set(STORAGE_KEY, JSON.stringify({ ds, demo, savedAt: Date.now() })); }
+  catch(e){ console.warn('persist failed', e); }
+}
+async function loadPersisted(){
+  try{
+    const res = await window.storage.get(STORAGE_KEY);
+    if(res && res.value) return JSON.parse(res.value);
+  }catch(e){ /* nothing persisted yet */ }
+  return null;
 }
 
-function renderBiasStrip(bias) {
-  $('#biasStrip').innerHTML = ASSET_DEFS.map(def => {
-    const v = bias[def.id];
-    if (!v || !v.b) return `<div class="bias-card no-data"><div class="bias-head"><span class="bias-asset">${def.label}</span><span style="font-size:10px; color:var(--text-faint);">Not available</span></div></div>`;
-    const tone = v.b.toLowerCase();
+/* ============================================================
+   SAMPLE DATASET — clearly-labeled demo data to preview layout
+   ============================================================ */
+const SAMPLE_DATASET = normalizeDataset({
+  meta:{ source:'Sample Dataset', session:'US Session Close', headline:'Fed pivot bets firm up; gold pushes higher as the dollar softens' },
+  macro:{
+    fed:{cur:'5.50%',prev:'5.50%',cons:'5.50%',d:'flat',note:'Held at cycle high'},
+    cpiH:{cur:'3.2%',prev:'3.4%',cons:'3.3%',d:'down',note:'Third straight cooling print'},
+    cpiC:{cur:'3.6%',prev:'3.8%',cons:'3.7%',d:'down',note:'Shelter costs finally easing'},
+    ppiH:{cur:'2.3%',prev:'2.5%',cons:'2.4%',d:'down',note:'Goods deflation persists'},
+    ppiC:{cur:'2.8%',prev:'2.9%',cons:'2.9%',d:'down',note:'In line, muted pipeline pressure'},
+    real:{cur:'1.90%',prev:'2.10%',cons:'',d:'down',note:'Falling as inflation cools'},
+    y2:{cur:'4.28%',prev:'4.41%',cons:'',d:'down',note:'Pricing faster 2026 cuts'},
+    y10:{cur:'4.02%',prev:'4.11%',cons:'',d:'down',note:'Curve bull-steepening'},
+    dxy:{cur:'103.4',prev:'104.6',cons:'',d:'down',note:'Broad dollar weakness'},
+    wti:{cur:'$78.20',prev:'$79.85',cons:'',d:'down',note:'Demand concerns weigh'},
+    brent:{cur:'$82.40',prev:'$83.90',cons:'',d:'down',note:'Tracking WTI lower'},
+    vix:{cur:'14.2',prev:'15.6',cons:'',d:'down',note:'Vol compressed into close'},
+  },
+  bias:{
+    gold:{b:'Bullish',cf:82,pd:'Real yields falling, dollar soft',br:'Hawkish FOMC surprise',nc:'FOMC minutes Wednesday'},
+    nifty:{b:'Bullish',cf:64,pd:'FII inflows resume on rate-cut bets',br:'Crude spike, FX pressure',nc:'RBI policy next week'},
+    usEq:{b:'Neutral',cf:55,pd:'Soft-landing narrative intact',br:'Stretched valuations into earnings',nc:'Mega-cap earnings this week'},
+    usBonds:{b:'Bullish',cf:70,pd:'Cooling inflation supports duration',br:'Heavy refunding supply',nc:'10Y auction Thursday'},
+    btc:{b:'Neutral',cf:48,pd:'Risk appetite steady',br:'ETF flow deceleration',nc:'Options expiry Friday'},
+  },
+  matrix:{
+    gold:{bd:'Falling real yields, weak dollar, CB buying',brd:'Hawkish Fed surprise, risk-on unwind',cd:'Real rates',b:'Bullish',cf:82},
+    nifty:{bd:'FII inflows, rate-cut bets, earnings beats',brd:'Crude spike, FX pressure',cd:'Global rate path',b:'Bullish',cf:64},
+    usEq:{bd:'Soft landing, resilient earnings',brd:'Valuation stretch, sticky core inflation',cd:'Earnings season',b:'Neutral',cf:55},
+    usBonds:{bd:'Disinflation, cooling labor market',brd:'Heavy issuance, term premium',cd:'Inflation trajectory',b:'Bullish',cf:70},
+    btc:{bd:'ETF demand, risk-on flows',brd:'Profit-taking, macro deleveraging',cd:'Risk sentiment',b:'Neutral',cf:48},
+  },
+  pos:{
+    risk:{v:'Risk-On',tone:'bullish'}, inflation:{v:'Cooling',tone:'bullish'}, growth:{v:'Resilient',tone:'neutral'},
+    liquidity:{v:'Ample',tone:'bullish'}, fed:{v:'Leaning Dovish',tone:'bullish'}, dollar:{v:'Softening',tone:'bearish'},
+    bond:{v:'Yields Falling',tone:'bullish'}, gold:{v:'Accumulating',tone:'bullish'},
+  },
+  events:[
+    {cat:'Fed',t:'14:00 ET',h:'FOMC minutes show growing consensus for September cut',w:'Cements market pricing for near-term easing, pressures front-end yields',aa:'DXY, US Bonds, Gold',imp:'High'},
+    {cat:'Inflation',t:'08:30 ET',h:'Core CPI cools to 3.6% y/y, third straight decline',w:'Reinforces disinflation trend, supports duration and gold',aa:'US Bonds, Gold, US Equities',imp:'High'},
+    {cat:'Central Bank',t:'Overnight',h:'RBI holds rates, signals data-dependent stance into festive season',w:'Keeps INR carry attractive, supports Nifty flows',aa:'Nifty',imp:'Medium'},
+    {cat:'Energy',t:'Overnight',h:'OPEC+ reaffirms voluntary cuts through Q1',w:'Caps downside in crude despite demand worries',aa:'WTI, Brent',imp:'Medium'},
+    {cat:'Geopolitics',t:'Overnight',h:'Middle East shipping disruptions ease as talks progress',w:'Reduces risk premium in oil and safe-haven flows',aa:'Gold, WTI, Brent',imp:'Medium'},
+    {cat:'Earnings',t:'After Close',h:'Mega-cap tech beats on cloud revenue, guidance cautious',w:'Sets tone for index-level earnings reaction this week',aa:'US Equities',imp:'Low'},
+  ],
+  narratives:[
+    {n:'Fed Pivot',tone:'bullish',s:80,aa:'Gold, US Bonds, US Equities'},
+    {n:'Inflation Cooling',tone:'bullish',s:75,aa:'US Bonds, Gold'},
+    {n:'Dollar Weakness',tone:'bearish',s:68,aa:'Gold, Nifty, Bitcoin'},
+    {n:'Risk-On Rotation',tone:'bullish',s:60,aa:'US Equities, Bitcoin, Nifty'},
+    {n:'Oil Supply Discipline',tone:'neutral',s:45,aa:'WTI, Brent'},
+    {n:'Treasury Supply Overhang',tone:'warning',s:40,aa:'US Bonds'},
+  ],
+  watchlist:[
+    {t:'08:30 ET',e:'US PCE Price Index (Sep)',f:'2.4% y/y',imp:'High',aa:'DXY, US Bonds, Gold'},
+    {t:'10:00 ET',e:'Consumer Confidence',f:'104.5',imp:'Medium',aa:'US Equities'},
+    {t:'14:00 ET',e:'FOMC Rate Decision',f:'Hold, 5.50%',imp:'High',aa:'DXY, US Bonds, Gold, US Equities'},
+    {t:'Pre-Market IN',e:'India Industrial Production (Aug)',f:'5.8% y/y',imp:'Medium',aa:'Nifty'},
+    {t:'Overnight',e:'China Manufacturing PMI',f:'50.2',imp:'Medium',aa:'Nifty, WTI, Brent'},
+    {t:'10:30 ET',e:'EIA Crude Inventories',f:'-1.8M bbl',imp:'Low',aa:'WTI, Brent'},
+    {t:'All Day',e:'US Treasury 7Y Auction',f:'',imp:'Medium',aa:'US Bonds'},
+    {t:'After Close',e:'Mega-cap Q3 Earnings (multiple)',f:'',imp:'High',aa:'US Equities, Bitcoin'},
+  ],
+});
+/* ============================================================
+   SMALL FORMATTERS
+   ============================================================ */
+let lastRawText = '';
+function fmtTime(d){ return d.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit', second:'2-digit'}); }
+function tickClock(){ const el = $('#liveClock'); if(el) el.textContent = fmtTime(new Date()) + ' local'; }
+function computeMarketSession(){
+  const h = new Date().getUTCHours() + new Date().getUTCMinutes()/60;
+  const inAsia = h>=23 || h<8, inLondon = h>=7 && h<16, inNY = h>=13 && h<21;
+  if(inLondon && inNY) return 'London / NY Overlap';
+  if(inNY) return 'US Session';
+  if(inLondon) return 'London Session';
+  if(inAsia) return 'Asia Session';
+  return 'Between Sessions';
+}
+function arrowHtml(d){
+  if(d==='up') return `<span class="kpi-arrow up">▲</span>`;
+  if(d==='down') return `<span class="kpi-arrow down">▼</span>`;
+  if(d==='flat') return `<span class="kpi-arrow flat">▬</span>`;
+  return `<span class="kpi-arrow flat">–</span>`;
+}
+function impBadge(imp){ return `<span class="badge" data-imp="${esc(imp)}">${esc(imp||'—')}</span>`; }
+function assetChips(aa){
+  if(!aa) return '';
+  return aa.split(',').map(s=>s.trim()).filter(Boolean).map(s=>`<span class="chip">${esc(s)}</span>`).join('');
+}
+function sortIndicator(key, state){
+  if(state.sortKey!==key) return '';
+  return `<span class="sort-ind">${state.sortDir==='asc'?'▲':'▼'}</span>`;
+}
+
+/* ============================================================
+   RENDER — header / status
+   ============================================================ */
+function renderStatusPills(){
+  const pills = [];
+  if(dataset && isDemo) pills.push(`<span class="pill">Dataset: Demo</span>`);
+  else if(dataset && !isDemo) pills.push(`<span class="pill pill--live">Dataset: Live</span>`);
+  else pills.push(`<span class="pill">Dataset: Awaiting Data</span>`);
+  pills.push(`<span class="pill">Updated: ${lastUpdatedAt ? fmtTime(lastUpdatedAt) : '—'}</span>`);
+  pills.push(`<span class="pill">Source: ${dataset && dataset.meta.source ? esc(dataset.meta.source) : '—'}</span>`);
+  pills.push(`<span class="pill">${esc(computeMarketSession())}</span>`);
+  const refreshTxt = lastWarnings.length ? 'Refresh: Partial' : (dataset ? 'Refresh: Up To Date' : 'Refresh: —');
+  pills.push(`<span class="pill${lastWarnings.length?' pill--error':''}">${refreshTxt}</span>`);
+  pills.push(isParsing ? `<span class="pill pill--parsing">Parsing…</span>` : `<span class="pill">Parse: Idle</span>`);
+  $('#statusPills').innerHTML = pills.join('');
+}
+
+/* ============================================================
+   RENDER — macro strip
+   ============================================================ */
+function renderMacroStrip(){
+  $('#macroStrip').innerHTML = MACRO_DEFS.map(def=>{
+    const v = dataset ? dataset.macro[def.id] : null;
+    const hasData = v && v.cur;
     return `
-      <div class="bias-card" data-bias="${tone}">
-        <div class="bias-head"><span class="bias-asset">${def.label}</span><span class="bias-badge" data-bias="${tone}">${esc(v.b)}</span></div>
-        ${v.cf != null ? `<div class="conf-label"><span>Conviction</span><span>${v.cf}%</span></div><div class="conf-bar"><div class="conf-fill" data-tone="${tone}" style="width:${v.cf}%"></div></div>` : ''}
-        <div class="bias-row"><span class="bias-k">Driver</span><span class="bias-v">${esc(v.pd) || 'N/A'}</span></div>
-      </div>
-    `;
+      <div class="kpi-tile${hasData?'':' no-data'}">
+        <div class="kpi-label">${esc(def.label)}</div>
+        <div class="kpi-value">${hasData? esc(v.cur) : '—'}</div>
+        <div class="kpi-meta">
+          <span class="mono">${hasData && v.prev ? 'Prev '+esc(v.prev) : ''}</span>
+          ${hasData ? arrowHtml(v.d) : ''}
+        </div>
+        <div class="kpi-cons">${hasData && v.note ? esc(v.note) : (hasData && v.cons ? 'Cons '+esc(v.cons) : '')}</div>
+      </div>`;
   }).join('');
 }
 
-function renderEvents(events) {
-  $('#eventsCount').textContent = events.length;
-  if (!events.length) { $('#eventsPanel').innerHTML = '<div class="empty-state">No major events identified</div>'; return; }
-  $('#eventsPanel').innerHTML = `<div class="timeline">` + events.map(e => `
-    <div class="event-item"><div class="event-time">${esc(e.t) || 'N/A'}</div>
-      <div class="event-body"><div class="event-top"><span class="event-cat">${esc(e.cat)}</span><span class="badge" data-imp="${esc(e.imp)}">${esc(e.imp)}</span></div>
-        <div class="event-headline">${esc(e.h)}</div><div class="event-why">${esc(e.w)}</div>
+/* ============================================================
+   RENDER — bias strip
+   ============================================================ */
+function renderBiasStrip(){
+  $('#biasStrip').innerHTML = ASSET_DEFS.map(def=>{
+    const v = dataset ? dataset.bias[def.id] : null;
+    const hasData = v && v.b;
+    const biasKey = hasData ? v.b.toLowerCase() : 'none';
+    return `
+    <div class="bias-card${hasData?'':' no-data'}" data-bias="${biasKey}">
+      <div class="bias-head">
+        <span class="bias-asset">${esc(def.label)}</span>
+        <span class="bias-badge" data-bias="${biasKey}">${hasData? esc(v.b) : 'N/A'}</span>
+      </div>
+      <div>
+        <div class="conf-label"><span>Confidence</span><span>${hasData && v.cf!=null ? v.cf+'%' : '—'}</span></div>
+        <div class="conf-bar"><div class="conf-fill" style="width:${hasData && v.cf!=null ? v.cf : 0}%"></div></div>
+      </div>
+      <div class="bias-row"><span class="bias-k">Driver</span><span class="bias-v">${hasData && v.pd ? esc(v.pd) : '—'}</span></div>
+      <div class="bias-row"><span class="bias-k">Risk</span><span class="bias-v">${hasData && v.br ? esc(v.br) : '—'}</span></div>
+      <div class="bias-row"><span class="bias-k">Catalyst</span><span class="bias-v">${hasData && v.nc ? esc(v.nc) : '—'}</span></div>
+    </div>`;
+  }).join('');
+}
+
+/* ============================================================
+   RENDER — composite risk gauge (derived from bias signals)
+   ============================================================ */
+function computeRiskScore(){
+  if(!dataset) return null;
+  let sum=0, weight=0;
+  ASSET_DEFS.forEach(def=>{
+    const v = dataset.bias[def.id];
+    if(!v || !v.b) return;
+    const polarity = v.b==='Bullish' ? 1 : v.b==='Bearish' ? -1 : 0;
+    const w = (v.cf!=null ? v.cf : 50) / 100;
+    sum += polarity * w; weight += w;
+  });
+  if(weight===0) return null;
+  return Math.round((sum/weight) * 100);
+}
+function renderRiskGauge(){
+  const score = computeRiskScore();
+  const hasScore = score!=null;
+  const angle = hasScore ? Math.max(-90, Math.min(90, score*0.9)) : 0;
+  const color = !hasScore ? 'var(--text-faint)' : score>15 ? 'var(--bull)' : score<-15 ? 'var(--bear)' : 'var(--neutral)';
+  const label = !hasScore ? 'Awaiting Data' : score>30 ? 'Strong Risk-On' : score>15 ? 'Risk-On' : score<-30 ? 'Strong Risk-Off' : score<-15 ? 'Risk-Off' : 'Neutral';
+  $('#gaugeWrap').innerHTML = `
+    <svg viewBox="0 0 200 108" width="100%" style="max-width:220px" role="img" aria-label="Composite risk sentiment gauge">
+      <defs><linearGradient id="gaugeGrad" x1="0" y1="0" x2="1" y2="0">
+        <stop offset="0%" stop-color="#F2453D"/><stop offset="50%" stop-color="#F0A63D"/><stop offset="100%" stop-color="#2FBF71"/>
+      </linearGradient></defs>
+      <path d="M12,100 A88,88 0 0,1 188,100" fill="none" stroke="url(#gaugeGrad)" stroke-width="10" stroke-linecap="round" opacity="${hasScore?1:0.25}"/>
+      <line x1="100" y1="100" x2="100" y2="26" stroke="${hasScore?'#EDF1F7':'#545D6B'}" stroke-width="2.5" stroke-linecap="round" transform="rotate(${angle} 100 100)"/>
+      <circle cx="100" cy="100" r="5" fill="${hasScore?'#EDF1F7':'#545D6B'}"/>
+    </svg>
+    <div class="gauge-score" style="color:${color}">${hasScore? (score>0?'+':'')+score : '—'}</div>
+    <div class="gauge-caption">${label} · derived from asset bias signals</div>
+    <div class="gauge-labels"><span>Risk-Off</span><span>Neutral</span><span>Risk-On</span></div>`;
+}
+
+/* ============================================================
+   RENDER — events / narratives
+   ============================================================ */
+function renderEvents(){
+  const list = dataset ? dataset.events : [];
+  $('#eventsCount').textContent = list.length ? list.length + ' items' : '';
+  if(!list.length){ $('#eventsPanel').innerHTML = `<div class="empty-state">No market-moving events extracted from the current dataset.</div>`; return; }
+  $('#eventsPanel').innerHTML = `<div class="timeline">` + list.map(e=>`
+    <div class="event-item">
+      <div class="event-time mono">${esc(e.t)||'—'}</div>
+      <div class="event-body">
+        <div class="event-top"><span class="event-cat">${esc(e.cat)||'General'}</span>${impBadge(e.imp)}</div>
+        <div class="event-headline">${esc(e.h)}</div>
+        ${e.w ? `<div class="event-why">${esc(e.w)}</div>` : ''}
+        <div class="event-assets">${assetChips(e.aa)}</div>
       </div>
     </div>`).join('') + `</div>`;
 }
-
-function renderNarratives(narratives) {
-  $('#narrativesCount').textContent = narratives.length;
-  if (!narratives.length) { $('#narrativesPanel').innerHTML = '<div class="empty-state">No narratives identified</div>'; return; }
-  $('#narrativesPanel').innerHTML = `<div class="narrative-grid">` + narratives.map(n => {
-    const t = n.tone.toLowerCase();
-    return `<div class="narrative-card"><div class="narrative-top"><span class="narrative-name">${esc(n.n)}</span><span class="badge" data-tone="${t}">${t}</span></div>
-      <div class="narrative-bar"><div class="narrative-fill" data-tone="${t}" style="width:${n.s}%"></div></div></div>`;
-  }).join('') + `</div>`;
+function renderNarratives(){
+  const list = dataset ? dataset.narratives : [];
+  $('#narrativesCount').textContent = list.length ? list.length + ' active' : '';
+  if(!list.length){ $('#narrativesPanel').innerHTML = `<div class="empty-state">No dominant narratives extracted from the current dataset.</div>`; return; }
+  $('#narrativesPanel').innerHTML = `<div class="narrative-grid">` + list.map(n=>`
+    <div class="narrative-card">
+      <div class="narrative-top"><span class="narrative-name">${esc(n.n)}</span><span class="badge" data-tone="${esc(n.tone)}">${esc(n.tone)}</span></div>
+      <div class="narrative-bar"><div class="narrative-fill" data-tone="${esc(n.tone)}" style="width:${n.s}%"></div></div>
+      <div class="narrative-assets">${esc((n.aa||'').split(',').map(s=>s.trim()).filter(Boolean).join(' · '))}</div>
+    </div>`).join('') + `</div>`;
 }
 
-function renderWatchlist(watchlist) {
-  let filtered = watchlist;
-  if (watchlistState.query) filtered = filtered.filter(w => w.e.toLowerCase().includes(watchlistState.query.toLowerCase()));
-  if (watchlistState.imp) filtered = filtered.filter(w => w.imp === watchlistState.imp);
-  $('#watchlistCount').textContent = filtered.length;
-  if (!filtered.length) { $('#watchlistPanel').innerHTML = '<div class="empty-state">No upcoming catalysts identified</div>'; return; }
-  $('#watchlistPanel').innerHTML = `<table class="data-table"><thead><tr><th>Time</th><th>Event</th><th>Forecast</th><th>Imp</th></tr></thead><tbody>` + 
-    filtered.map(w => `<tr><td class="mono">${esc(w.t)}</td><td class="strong">${esc(w.e)}</td><td class="mono">${esc(w.f)}</td><td><span class="badge" data-imp="${esc(w.imp)}">${esc(w.imp)}</span></td></tr>`).join('') + `</tbody></table>`;
-}
-
-function renderMacroTable(macro) {
-  let keys = MACRO_DEFS;
-  if (macroTableState.query) keys = keys.filter(k => k.label.toLowerCase().includes(macroTableState.query.toLowerCase()));
-  $('#macroTableCount').textContent = keys.length;
-  $('#macroTablePanel').innerHTML = `<table class="data-table"><thead><tr><th>Indicator</th><th>Current</th><th>Previous</th><th>Trend</th></tr></thead><tbody>` + 
-    keys.map(k => {
-      const v = macro[k.id] || {};
-      return `<tr><td class="strong">${esc(k.label)}</td><td class="mono">${esc(v.cur)||'N/A'}</td><td class="mono">${esc(v.prev)||'N/A'}</td><td>${getArrow(v.d)}</td></tr>`;
-    }).join('') + `</tbody></table>`;
-}
-
-function renderMatrix(matrix) {
-  $('#matrixPanel').innerHTML = `<table class="data-table"><thead><tr><th>Asset</th><th>Bull Drivers</th><th>Bear Drivers</th><th>Catalyst</th></tr></thead><tbody>` + 
-    ASSET_DEFS.map(a => {
-      const v = matrix[a.id] || {};
-      return `<tr><td class="matrix-asset">${esc(a.label)}</td><td class="driver-list">${esc(v.bd)||'N/A'}</td><td class="driver-list">${esc(v.brd)||'N/A'}</td><td>${esc(v.cd)||'N/A'}</td></tr>`;
-    }).join('') + `</tbody></table>`;
-}
-
-function renderPositioning(pos) {
-  let score = 0, count = 0, html = '';
-  POS_DEFS.forEach(p => {
-    const data = pos[p.id];
-    if (!data || !data.v) {
-      html += `<div class="pos-row"><span class="pos-label">${esc(p.label)}</span><div class="pos-value"><span class="pos-text" style="color:var(--text-faint);">N/A</span></div></div>`;
-      return;
-    }
-    const t = data.tone.toLowerCase();
-    if (t === 'bullish') score += 1; else if (t === 'bearish') score -= 1;
-    count++;
-    html += `<div class="pos-row"><span class="pos-label">${esc(p.label)}</span><div class="pos-value"><span class="pos-dot" data-tone="${t}"></span><span class="pos-text">${esc(data.v)}</span></div></div>`;
-  });
-  $('#positioningPanel').innerHTML = html;
-  let gaugeScore = count > 0 ? 50 + ((score / count) * 50) : 50;
-  $('#gaugeWrap').innerHTML = `<div class="conf-bar"><div class="conf-fill" style="width:${gaugeScore}%; background:var(--macro)"></div></div>
-    <div class="gauge-labels"><span>Risk Off</span><span>Neutral</span><span>Risk On</span></div><div class="gauge-score">${Math.round(gaugeScore)}</div><div class="gauge-caption">Aggregate Sentiment</div>`;
-}
-
-function updateStatusPills() {
-  $('#statusPills').innerHTML = isParsing 
-    ? `<span class="pill pill--parsing">Processing Intelligence Pipeline...</span>` 
-    : (Object.keys(dataset.macro).length > 0 ? `<span class="pill pill--live">Intelligence Synchronized</span>` : `<span class="pill">Awaiting Input Data</span>`);
-}
-
-function renderApp() {
-  renderMacroStrip(dataset.macro); renderBiasStrip(dataset.bias); renderEvents(dataset.events);
-  renderNarratives(dataset.narratives); renderWatchlist(dataset.watchlist); renderMacroTable(dataset.macro);
-  renderMatrix(dataset.matrix); renderPositioning(dataset.pos); updateStatusPills();
-}
-
-$('#processBtn').addEventListener('click', async () => {
-  const text = $('#pasteZone').value;
-  if(text.trim().length < 10) return;
-  
-  isParsing = true; updateStatusPills();
-  $('#summaryBanner').classList.add('hidden');
-  $('#processBtn').textContent = 'Processing...';
-
-  try {
-    const summary = await processPipeline(text);
-    renderApp();
-    displaySummary(summary);
-    $('#pasteZone').value = '';
-  } catch(e) {
-    displaySummary({ success: [], failed: ['System Error: ' + e.message] });
-  } finally {
-    isParsing = false; updateStatusPills();
-    $('#processBtn').textContent = 'Process Intelligence';
+/* ============================================================
+   RENDER — watchlist (sortable / searchable / filterable)
+   ============================================================ */
+function applyWatchlistFilter(list){
+  let out = list;
+  if(watchlistState.query){
+    const q = watchlistState.query.toLowerCase();
+    out = out.filter(w => (w.e+' '+w.aa+' '+w.t).toLowerCase().includes(q));
   }
-});
+  if(watchlistState.imp) out = out.filter(w => w.imp === watchlistState.imp);
+  if(watchlistState.sortKey){
+    const k = watchlistState.sortKey;
+    out = [...out].sort((a,b)=>{
+      let av=a[k], bv=b[k];
+      if(k==='imp'){ const rank={High:3,Medium:2,Low:1}; av=rank[a.imp]||0; bv=rank[b.imp]||0; }
+      else { av=(av||'').toString().toLowerCase(); bv=(bv||'').toString().toLowerCase(); }
+      if(av<bv) return watchlistState.sortDir==='asc'?-1:1;
+      if(av>bv) return watchlistState.sortDir==='asc'?1:-1;
+      return 0;
+    });
+  }
+  return out;
+}
+function renderWatchlist(){
+  const full = dataset ? dataset.watchlist : [];
+  $('#watchlistCount').textContent = full.length ? full.length + ' items' : '';
+  if(!full.length){ $('#watchlistPanel').innerHTML = `<div class="empty-state">No scheduled items extracted from the current dataset.</div>`; return; }
+  const rows = applyWatchlistFilter(full);
+  const cols = [['t','Time'],['e','Event'],['f','Forecast'],['imp','Importance'],['aa','Assets']];
+  $('#watchlistPanel').innerHTML = `
+    <table class="data-table">
+      <thead><tr>${cols.map(([k,l])=>`<th data-sort="${k}" data-table="watchlist">${l}${sortIndicator(k,watchlistState)}</th>`).join('')}</tr></thead>
+      <tbody>${rows.length? rows.map(w=>`
+        <tr>
+          <td class="mono">${esc(w.t)||'—'}</td>
+          <td class="strong">${esc(w.e)}</td>
+          <td class="mono">${esc(w.f)||'—'}</td>
+          <td>${impBadge(w.imp)}</td>
+          <td>${assetChips(w.aa)}</td>
+        </tr>`).join('') : `<tr><td colspan="5" style="text-align:center;color:var(--text-faint);padding:16px">No matches</td></tr>`}</tbody>
+    </table>`;
+}
 
-// Filters
-$('#watchlistSearch').addEventListener('input', (e) => { watchlistState.query = e.target.value; renderWatchlist(dataset.watchlist); });
-$('#watchlistImpFilter').addEventListener('change', (e) => { watchlistState.imp = e.target.value; renderWatchlist(dataset.watchlist); });
-$('#macroTableSearch').addEventListener('input', (e) => { macroTableState.query = e.target.value; renderMacroTable(dataset.macro); });
+/* ============================================================
+   RENDER — bottom panel 1: US macro dashboard table
+   ============================================================ */
+function applyMacroTableFilter(){
+  let rows = MACRO_DEFS.map(def=>({ id:def.id, label:def.label, ...dataset.macro[def.id] }));
+  if(macroTableState.query){
+    const q = macroTableState.query.toLowerCase();
+    rows = rows.filter(r => (r.label+' '+r.note).toLowerCase().includes(q));
+  }
+  if(macroTableState.sortKey){
+    const k = macroTableState.sortKey;
+    rows = [...rows].sort((a,b)=>{
+      let av=(a[k]||'').toString().toLowerCase(), bv=(b[k]||'').toString().toLowerCase();
+      if(av<bv) return macroTableState.sortDir==='asc'?-1:1;
+      if(av>bv) return macroTableState.sortDir==='asc'?1:-1;
+      return 0;
+    });
+  }
+  return rows;
+}
+function renderMacroTable(){
+  $('#macroTableCount').textContent = dataset ? MACRO_DEFS.length + ' indicators' : '';
+  if(!dataset){ $('#macroTablePanel').innerHTML = `<div class="empty-state">Awaiting dataset.</div>`; return; }
+  const rows = applyMacroTableFilter();
+  const cols = [['label','Indicator'],['cur','Latest'],['prev','Previous'],['cons','Consensus'],['d','Trend'],['note','Interpretation']];
+  $('#macroTablePanel').innerHTML = `
+    <table class="data-table">
+      <thead><tr>${cols.map(([k,l])=>`<th data-sort="${k}" data-table="macro">${l}${sortIndicator(k,macroTableState)}</th>`).join('')}</tr></thead>
+      <tbody>${rows.map(r=>`
+        <tr>
+          <td class="strong">${esc(r.label)}</td>
+          <td class="mono">${r.cur? esc(r.cur):'—'}</td>
+          <td class="mono">${r.prev? esc(r.prev):'—'}</td>
+          <td class="mono">${r.cons? esc(r.cons):'—'}</td>
+          <td>${arrowHtml(r.d)}</td>
+          <td>${esc(r.note)||'—'}</td>
+        </tr>`).join('')}</tbody>
+    </table>`;
+}
 
-// UTC Clock
-setInterval(() => { $('#liveClock').textContent = new Date().toISOString().replace('T', ' ').substring(0, 19) + ' UTC'; }, 1000);
+/* ============================================================
+   RENDER — bottom panel 2: asset driver matrix
+   ============================================================ */
+function renderMatrix(){
+  if(!dataset){ $('#matrixPanel').innerHTML = `<div class="empty-state">Awaiting dataset.</div>`; return; }
+  const cols = ['Asset','Bullish Drivers','Bearish Drivers','Current Driver','Bias','Conf.'];
+  $('#matrixPanel').innerHTML = `
+    <table class="data-table">
+      <thead><tr>${cols.map(c=>`<th>${c}</th>`).join('')}</tr></thead>
+      <tbody>${ASSET_DEFS.map(def=>{
+        const v = dataset.matrix[def.id];
+        const hasData = v && v.b;
+        const biasKey = hasData ? v.b.toLowerCase() : 'none';
+        return `<tr>
+          <td class="matrix-asset">${esc(def.label)}</td>
+          <td class="driver-list">${esc(v.bd)||'—'}</td>
+          <td class="driver-list">${esc(v.brd)||'—'}</td>
+          <td>${esc(v.cd)||'—'}</td>
+          <td><span class="badge" data-tone="${biasKey}">${hasData?esc(v.b):'N/A'}</span></td>
+          <td class="mono">${v.cf!=null? v.cf+'%':'—'}</td>
+        </tr>`;
+      }).join('')}</tbody>
+    </table>`;
+}
 
-renderApp(); // Initial empty render
+/* ============================================================
+   RENDER — bottom panel 3: institutional positioning
+   ============================================================ */
+function renderPositioning(){
+  if(!dataset){ $('#positioningPanel').innerHTML=''; return; }
+  $('#positioningPanel').innerHTML = dataset.pos.map(p=>`
+    <div class="pos-row">
+      <span class="pos-label">${esc(p.label)}</span>
+      <span class="pos-value"><span class="pos-dot" data-tone="${esc(p.tone)}"></span><span class="pos-text">${p.v? esc(p.v):'—'}</span></span>
+    </div>`).join('');
+}
+
+function renderAll(){
+  renderStatusPills(); renderMacroStrip(); renderBiasStrip(); renderRiskGauge();
+  renderEvents(); renderNarratives(); renderWatchlist(); renderMacroTable(); renderMatrix(); renderPositioning();
+}
+
+/* ============================================================
+   ERROR BANNER
+   ============================================================ */
+function showError(msg){ $('#errorText').textContent = msg; $('#errorBanner').classList.remove('hidden'); }
+function clearError(){ $('#errorBanner').classList.add('hidden'); }
+
+/* ============================================================
+   ORCHESTRATION — paste-to-refresh
+   ============================================================ */
+async function handleNewIntelligence(rawText){
+  if(isParsing) return;
+  if(!rawText || rawText.trim().length < 20){ showError('Paste more complete intelligence text — input looks too short to parse.'); return; }
+  isParsing = true;
+  lastRawText = rawText;
+  clearError();
+  renderStatusPills();
+  $('#retryBtn').classList.add('spin');
+  try{
+    const { data, warnings } = await extractIntelligence(rawText, dataset);
+    dataset = data;
+    isDemo = false;
+    lastUpdatedAt = new Date();
+    lastWarnings = warnings;
+    renderAll();
+    persistDataset(dataset, false);
+    $('#pasteZone').value = '';
+    $('#pasteZone').style.height = '';
+    if(warnings.length) showError('Partial refresh — kept previous values for: ' + warnings.join('; ') + '.');
+  }catch(err){
+    console.error(err);
+    showError((err && err.message) ? err.message : 'Parsing failed — please try again.');
+  }finally{
+    isParsing = false;
+    $('#retryBtn').classList.remove('spin');
+    renderStatusPills();
+  }
+}
+
+/* ============================================================
+   EVENT WIRING
+   ============================================================ */
+function wireEvents(){
+  const pasteZone = $('#pasteZone');
+
+  pasteZone.addEventListener('paste', ()=>{
+    setTimeout(()=>{
+      const text = pasteZone.value.trim();
+      if(text.length >= 20) handleNewIntelligence(text);
+    }, 30);
+  });
+  pasteZone.addEventListener('input', ()=>{
+    pasteZone.style.height = 'auto';
+    pasteZone.style.height = Math.min(pasteZone.scrollHeight, 220) + 'px';
+  });
+
+  $('#retryBtn').addEventListener('click', ()=>{
+    const text = pasteZone.value.trim() || lastRawText;
+    if(text) handleNewIntelligence(text);
+    else showError('Nothing to re-run yet — paste intelligence text first.');
+  });
+
+  $('#sampleBtn').addEventListener('click', ()=>{
+    dataset = SAMPLE_DATASET; isDemo = true; lastUpdatedAt = new Date(); lastWarnings = [];
+    clearError(); renderAll(); persistDataset(dataset, true);
+  });
+
+  $('#errorDismiss').addEventListener('click', clearError);
+
+  $('#watchlistSearch').addEventListener('input', debounce(e=>{ watchlistState.query = e.target.value; renderWatchlist(); }, 150));
+  $('#watchlistImpFilter').addEventListener('change', e=>{ watchlistState.imp = e.target.value; renderWatchlist(); });
+  $('#macroTableSearch').addEventListener('input', debounce(e=>{ macroTableState.query = e.target.value; renderMacroTable(); }, 150));
+
+  document.addEventListener('click', e=>{
+    const th = e.target.closest('th[data-sort]');
+    if(!th) return;
+    const key = th.getAttribute('data-sort');
+    const which = th.getAttribute('data-table');
+    const state = which==='watchlist' ? watchlistState : macroTableState;
+    if(state.sortKey===key){ state.sortDir = state.sortDir==='asc'?'desc':'asc'; } else { state.sortKey = key; state.sortDir = 'asc'; }
+    which==='watchlist' ? renderWatchlist() : renderMacroTable();
+  });
+}
+
+/* ============================================================
+   INIT
+   ============================================================ */
+async function init(){
+  tickClock();
+  setInterval(tickClock, 1000);
+  renderAll();
+  wireEvents();
+  try{
+    const persisted = await loadPersisted();
+    if(persisted && persisted.ds){
+      dataset = persisted.ds;
+      isDemo = !!persisted.demo;
+      lastUpdatedAt = persisted.savedAt ? new Date(persisted.savedAt) : new Date();
+      renderAll();
+    }
+  }catch(e){ console.warn('no persisted dataset', e); }
+}
+document.addEventListener('DOMContentLoaded', init);
 </script>
 </body>
 </html>
