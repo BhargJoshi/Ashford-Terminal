@@ -351,7 +351,6 @@ button{ font-family:inherit; }
       <textarea id="pasteZone" rows="1" placeholder="Paste raw market intelligence to refresh the terminal — parses automatically, no submit needed…"></textarea>
     </label>
     <button class="btn-icon" id="retryBtn" title="Re-run parse on current input">⟳</button>
-    <button class="btn" id="sampleBtn" title="Load sample dataset to preview the layout">Load Sample</button>
   </div>
 
   <div class="error-banner hidden" id="errorBanner">
@@ -408,7 +407,7 @@ button{ font-family:inherit; }
   </section>
 
   <footer class="term-footer">
-    <span>Parsed live via Claude · nothing leaves this session except the extraction call</span>
+    <span>Parsed live via API · nothing leaves this session except the extraction call</span>
     <span id="footerRight">Ashford Capital — internal use</span>
   </footer>
 
@@ -453,7 +452,6 @@ const POS_DEFS = [
    STATE
    ============================================================ */
 let dataset = null;       // normalized dataset currently rendered, or null
-let isDemo = false;
 let isParsing = false;
 let lastUpdatedAt = null; // Date
 let lastWarnings = [];
@@ -616,8 +614,8 @@ async function extractIntelligence(rawText){
    PERSISTENCE
    ============================================================ */
 const STORAGE_KEY = 'terminal_dataset_v1';
-async function persistDataset(ds, demo){
-  try{ await window.storage.set(STORAGE_KEY, JSON.stringify({ ds, demo, savedAt: Date.now() })); }
+async function persistDataset(ds){
+  try{ await window.storage.set(STORAGE_KEY, JSON.stringify({ ds, savedAt: Date.now() })); }
   catch(e){ console.warn('persist failed', e); }
 }
 async function loadPersisted(){
@@ -629,85 +627,18 @@ async function loadPersisted(){
 }
 
 /* ============================================================
-   SAMPLE DATASET
-   ============================================================ */
-const SAMPLE_DATASET = normalizeDataset({
-  meta:{ source:'Sample Dataset', session:'US Session Close', headline:'Fed pivot bets firm up; gold pushes higher as the dollar softens' },
-  macro:{
-    fed:{cur:'5.50%',prev:'5.50%',cons:'5.50%',d:'flat',note:'Held at cycle high'},
-    cpiH:{cur:'3.2%',prev:'3.4%',cons:'3.3%',d:'down',note:'Third straight cooling print'},
-    cpiC:{cur:'3.6%',prev:'3.8%',cons:'3.7%',d:'down',note:'Shelter costs finally easing'},
-    ppiH:{cur:'2.3%',prev:'2.5%',cons:'2.4%',d:'down',note:'Goods deflation persists'},
-    ppiC:{cur:'2.8%',prev:'2.9%',cons:'2.9%',d:'down',note:'In line, muted pipeline pressure'},
-    real:{cur:'1.90%',prev:'2.10%',cons:'',d:'down',note:'Falling as inflation cools'},
-    y2:{cur:'4.28%',prev:'4.41%',cons:'',d:'down',note:'Pricing faster 2026 cuts'},
-    y10:{cur:'4.02%',prev:'4.11%',cons:'',d:'down',note:'Curve bull-steepening'},
-    dxy:{cur:'103.4',prev:'104.6',cons:'',d:'down',note:'Broad dollar weakness'},
-    wti:{cur:'$78.20',prev:'$79.85',cons:'',d:'down',note:'Demand concerns weigh'},
-    brent:{cur:'$82.40',prev:'$83.90',cons:'',d:'down',note:'Tracking WTI lower'},
-    vix:{cur:'14.2',prev:'15.6',cons:'',d:'down',note:'Vol compressed into close'},
-  },
-  bias:{
-    gold:{b:'Bullish',cf:82,pd:'Real yields falling, dollar soft',br:'Hawkish FOMC surprise',nc:'FOMC minutes Wednesday'},
-    nifty:{b:'Bullish',cf:64,pd:'FII inflows resume on rate-cut bets',br:'Crude spike, FX pressure',nc:'RBI policy next week'},
-    usEq:{b:'Neutral',cf:55,pd:'Soft-landing narrative intact',br:'Stretched valuations into earnings',nc:'Mega-cap earnings this week'},
-    usBonds:{b:'Bullish',cf:70,pd:'Cooling inflation supports duration',br:'Heavy refunding supply',nc:'10Y auction Thursday'},
-    btc:{b:'Neutral',cf:48,pd:'Risk appetite steady',br:'ETF flow deceleration',nc:'Options expiry Friday'},
-  },
-  matrix:{
-    gold:{bd:'Falling real yields, weak dollar, CB buying',brd:'Hawkish Fed surprise, risk-on unwind',cd:'Real rates',b:'Bullish',cf:82},
-    nifty:{bd:'FII inflows, rate-cut bets, earnings beats',brd:'Crude spike, FX pressure',cd:'Global rate path',b:'Bullish',cf:64},
-    usEq:{bd:'Soft landing, resilient earnings',brd:'Valuation stretch, sticky core inflation',cd:'Earnings season',b:'Neutral',cf:55},
-    usBonds:{bd:'Disinflation, cooling labor market',brd:'Heavy issuance, term premium',cd:'Inflation trajectory',b:'Bullish',cf:70},
-    btc:{bd:'ETF demand, risk-on flows',brd:'Profit-taking, macro deleveraging',cd:'Risk sentiment',b:'Neutral',cf:48},
-  },
-  pos:{
-    risk:{v:'Risk-On',tone:'bullish'}, inflation:{v:'Cooling',tone:'bullish'}, growth:{v:'Resilient',tone:'neutral'},
-    liquidity:{v:'Ample',tone:'bullish'}, fed:{v:'Leaning Dovish',tone:'bullish'}, dollar:{v:'Softening',tone:'bearish'},
-    bond:{v:'Yields Falling',tone:'bullish'}, gold:{v:'Accumulating',tone:'bullish'},
-  },
-  events:[
-    {cat:'Fed',t:'14:00 ET',h:'FOMC minutes show growing consensus for September cut',w:'Cements market pricing for near-term easing, pressures front-end yields',aa:'DXY, US Bonds, Gold',imp:'High'},
-    {cat:'Inflation',t:'08:30 ET',h:'Core CPI cools to 3.6% y/y, third straight decline',w:'Reinforces disinflation trend, supports duration and gold',aa:'US Bonds, Gold, US Equities',imp:'High'},
-    {cat:'Central Bank',t:'Overnight',h:'RBI holds rates, signals data-dependent stance into festive season',w:'Keeps INR carry attractive, supports Nifty flows',aa:'Nifty',imp:'Medium'},
-    {cat:'Energy',t:'Overnight',h:'OPEC+ reaffirms voluntary cuts through Q1',w:'Caps downside in crude despite demand worries',aa:'WTI, Brent',imp:'Medium'},
-    {cat:'Geopolitics',t:'Overnight',h:'Middle East shipping disruptions ease as talks progress',w:'Reduces risk premium in oil and safe-haven flows',aa:'Gold, WTI, Brent',imp:'Medium'},
-    {cat:'Earnings',t:'After Close',h:'Mega-cap tech beats on cloud revenue, guidance cautious',w:'Sets tone for index-level earnings reaction this week',aa:'US Equities',imp:'Low'},
-  ],
-  narratives:[
-    {n:'Fed Pivot',tone:'bullish',s:80,aa:'Gold, US Bonds, US Equities'},
-    {n:'Inflation Cooling',tone:'bullish',s:75,aa:'US Bonds, Gold'},
-    {n:'Dollar Weakness',tone:'bearish',s:68,aa:'Gold, Nifty, Bitcoin'},
-    {n:'Risk-On Rotation',tone:'bullish',s:60,aa:'US Equities, Bitcoin, Nifty'},
-    {n:'Oil Supply Discipline',tone:'neutral',s:45,aa:'WTI, Brent'},
-    {n:'Treasury Supply Overhang',tone:'warning',s:40,aa:'US Bonds'},
-  ],
-  watchlist:[
-    {t:'08:30 ET',e:'US PCE Price Index (Sep)',f:'2.4% y/y',imp:'High',aa:'DXY, US Bonds, Gold'},
-    {t:'10:00 ET',e:'Consumer Confidence',f:'104.5',imp:'Medium',aa:'US Equities'},
-    {t:'14:00 ET',e:'FOMC Rate Decision',f:'Hold, 5.50%',imp:'High',aa:'DXY, US Bonds, Gold, US Equities'},
-    {t:'Pre-Market IN',e:'India Industrial Production (Aug)',f:'5.8% y/y',imp:'Medium',aa:'Nifty'},
-    {t:'Overnight',e:'China Manufacturing PMI',f:'50.2',imp:'Medium',aa:'Nifty, WTI, Brent'},
-    {t:'10:30 ET',e:'EIA Crude Inventories',f:'-1.8M bbl',imp:'Low',aa:'WTI, Brent'},
-    {t:'All Day',e:'US Treasury 7Y Auction',f:'',imp:'Medium',aa:'US Bonds'},
-    {t:'After Close',e:'Mega-cap Q3 Earnings (multiple)',f:'',imp:'High',aa:'US Equities, Bitcoin'},
-  ],
-});
-
-
-/* ============================================================
-   RENDERING ENGINE (Newly Added to Make the Website Work)
+   RENDERING ENGINE
    ============================================================ */
 function renderMacroStrip(macro) {
   const strip = $('#macroStrip');
   strip.innerHTML = MACRO_DEFS.map(def => {
     const v = macro[def.id];
-    if (!v || !v.cur) return `<div class="kpi-tile no-data"><div class="kpi-label">${def.label}</div><div class="kpi-value">—</div></div>`;
+    if (!v || !v.cur) return `<div class="kpi-tile no-data"><div class="kpi-label">${def.label}</div><div class="kpi-value" style="font-size:14px; font-weight:500;">Not available</div></div>`;
     return `
       <div class="kpi-tile">
         <div class="kpi-meta"><span class="kpi-label">${def.label}</span>${getArrow(v.d)}</div>
         <div class="kpi-value">${esc(v.cur)}</div>
-        <div class="kpi-cons">Prev: ${esc(v.prev)}</div>
+        <div class="kpi-cons">Prev: ${esc(v.prev) || 'Not available'}</div>
       </div>
     `;
   }).join('');
@@ -717,7 +648,7 @@ function renderBiasStrip(bias) {
   const strip = $('#biasStrip');
   strip.innerHTML = ASSET_DEFS.map(def => {
     const v = bias[def.id];
-    if (!v || !v.b) return `<div class="bias-card no-data"><div class="bias-head"><span class="bias-asset">${def.label}</span></div></div>`;
+    if (!v || !v.b) return `<div class="bias-card no-data"><div class="bias-head"><span class="bias-asset">${def.label}</span><span style="font-size:10px; color:var(--text-faint);">Not available</span></div></div>`;
     const tone = v.b.toLowerCase();
     return `
       <div class="bias-card" data-bias="${tone}">
@@ -729,8 +660,8 @@ function renderBiasStrip(bias) {
         <div class="conf-label"><span>Conviction</span><span>${v.cf}%</span></div>
         <div class="conf-bar"><div class="conf-fill" data-tone="${tone}" style="width:${v.cf}%"></div></div>
         ` : ''}
-        <div class="bias-row"><span class="bias-k">Driver</span><span class="bias-v">${esc(v.pd)}</span></div>
-        <div class="bias-row"><span class="bias-k">Risk</span><span class="bias-v">${esc(v.br)}</span></div>
+        <div class="bias-row"><span class="bias-k">Driver</span><span class="bias-v">${esc(v.pd) || 'Not available'}</span></div>
+        <div class="bias-row"><span class="bias-k">Risk</span><span class="bias-v">${esc(v.br) || 'Not available'}</span></div>
       </div>
     `;
   }).join('');
@@ -739,17 +670,17 @@ function renderBiasStrip(bias) {
 function renderEvents(events) {
   const panel = $('#eventsPanel');
   $('#eventsCount').textContent = events.length;
-  if (!events.length) { panel.innerHTML = '<div class="empty-state">No market-moving events recorded.</div>'; return; }
+  if (!events.length) { panel.innerHTML = '<div class="empty-state">Not available</div>'; return; }
   panel.innerHTML = `<div class="timeline">` + events.map(e => `
     <div class="event-item">
-      <div class="event-time">${esc(e.t)}</div>
+      <div class="event-time">${esc(e.t) || 'Not available'}</div>
       <div class="event-body">
         <div class="event-top">
-          <span class="event-cat">${esc(e.cat)}</span>
-          <span class="badge" data-imp="${esc(e.imp)}">${esc(e.imp)}</span>
+          <span class="event-cat">${esc(e.cat) || 'Not available'}</span>
+          <span class="badge" data-imp="${esc(e.imp)}">${esc(e.imp) || 'Not available'}</span>
         </div>
-        <div class="event-headline">${esc(e.h)}</div>
-        <div class="event-why">${esc(e.w)}</div>
+        <div class="event-headline">${esc(e.h) || 'Not available'}</div>
+        <div class="event-why">${esc(e.w) || 'Not available'}</div>
         ${e.aa ? `<div>${e.aa.split(',').map(a => `<span class="chip">${esc(a.trim())}</span>`).join('')}</div>` : ''}
       </div>
     </div>
@@ -759,17 +690,17 @@ function renderEvents(events) {
 function renderNarratives(narratives) {
   const panel = $('#narrativesPanel');
   $('#narrativesCount').textContent = narratives.length;
-  if (!narratives.length) { panel.innerHTML = '<div class="empty-state">No dominant narratives tracked.</div>'; return; }
+  if (!narratives.length) { panel.innerHTML = '<div class="empty-state">Not available</div>'; return; }
   panel.innerHTML = `<div class="narrative-grid">` + narratives.map(n => {
     const t = n.tone.toLowerCase();
     return `
       <div class="narrative-card">
         <div class="narrative-top">
-          <span class="narrative-name">${esc(n.n)}</span>
-          <span class="badge" data-tone="${t}">${t}</span>
+          <span class="narrative-name">${esc(n.n) || 'Not available'}</span>
+          <span class="badge" data-tone="${t}">${t || 'none'}</span>
         </div>
         <div class="narrative-bar"><div class="narrative-fill" data-tone="${t}" style="width:${n.s}%"></div></div>
-        <div class="narrative-assets">${esc(n.aa)}</div>
+        <div class="narrative-assets">${esc(n.aa) || 'Not available'}</div>
       </div>
     `;
   }).join('') + `</div>`;
@@ -786,16 +717,16 @@ function renderWatchlist(watchlist) {
   }
   
   $('#watchlistCount').textContent = filtered.length;
-  if (!filtered.length) { panel.innerHTML = '<div class="empty-state">Watchlist empty or filtered out.</div>'; return; }
+  if (!filtered.length) { panel.innerHTML = '<div class="empty-state">Not available</div>'; return; }
   
   let html = `<table class="data-table"><thead><tr><th>Time</th><th>Event</th><th>Forecast</th><th>Imp</th><th>Assets</th></tr></thead><tbody>`;
   html += filtered.map(w => `
     <tr>
-      <td class="mono">${esc(w.t)}</td>
-      <td class="strong">${esc(w.e)}</td>
-      <td class="mono">${esc(w.f)}</td>
-      <td><span class="badge" data-imp="${esc(w.imp)}">${esc(w.imp)}</span></td>
-      <td>${w.aa.split(',').map(a => `<span class="chip">${esc(a.trim())}</span>`).join('')}</td>
+      <td class="mono">${esc(w.t) || 'Not available'}</td>
+      <td class="strong">${esc(w.e) || 'Not available'}</td>
+      <td class="mono">${esc(w.f) || 'Not available'}</td>
+      <td><span class="badge" data-imp="${esc(w.imp)}">${esc(w.imp) || 'Not available'}</span></td>
+      <td>${w.aa ? w.aa.split(',').map(a => `<span class="chip">${esc(a.trim())}</span>`).join('') : 'Not available'}</td>
     </tr>
   `).join('');
   html += `</tbody></table>`;
@@ -810,7 +741,7 @@ function renderMacroTable(macro) {
   }
   
   $('#macroTableCount').textContent = keys.length;
-  if (!keys.length) { panel.innerHTML = '<div class="empty-state">No indicators match search.</div>'; return; }
+  if (!keys.length) { panel.innerHTML = '<div class="empty-state">Not available</div>'; return; }
 
   let html = `<table class="data-table"><thead><tr><th>Indicator</th><th>Current</th><th>Previous</th><th>Trend</th><th>Notes</th></tr></thead><tbody>`;
   html += keys.map(k => {
@@ -818,10 +749,10 @@ function renderMacroTable(macro) {
     return `
       <tr>
         <td class="strong">${esc(k.label)}</td>
-        <td class="mono">${esc(v.cur)}</td>
-        <td class="mono">${esc(v.prev)}</td>
+        <td class="mono">${esc(v.cur) || 'Not available'}</td>
+        <td class="mono">${esc(v.prev) || 'Not available'}</td>
         <td>${getArrow(v.d)}</td>
-        <td>${esc(v.note)}</td>
+        <td>${esc(v.note) || 'Not available'}</td>
       </tr>
     `;
   }).join('');
@@ -837,9 +768,9 @@ function renderMatrix(matrix) {
     return `
       <tr>
         <td class="matrix-asset">${esc(a.label)}</td>
-        <td class="driver-list">${esc(v.bd)}</td>
-        <td class="driver-list">${esc(v.brd)}</td>
-        <td>${esc(v.cd)}</td>
+        <td class="driver-list">${esc(v.bd) || 'Not available'}</td>
+        <td class="driver-list">${esc(v.brd) || 'Not available'}</td>
+        <td>${esc(v.cd) || 'Not available'}</td>
       </tr>
     `;
   }).join('');
@@ -855,6 +786,19 @@ function renderPositioning(pos) {
   
   Object.values(pos).forEach(p => {
     if (!p.label) return;
+    
+    if (!p.v) {
+      html += `
+        <div class="pos-row">
+          <span class="pos-label">${esc(p.label)}</span>
+          <div class="pos-value">
+            <span class="pos-text" style="color:var(--text-faint);">Not available</span>
+          </div>
+        </div>
+      `;
+      return;
+    }
+
     const t = p.tone.toLowerCase();
     if (t === 'bullish') score += 1;
     else if (t === 'bearish') score -= 1;
@@ -888,8 +832,14 @@ function renderPositioning(pos) {
    ============================================================ */
 function updateStatusPills() {
   const container = $('#statusPills');
-  let html = `<span class="pill pill--live">Live</span>`;
-  if (isDemo) html += `<span class="pill">Sample Dataset</span>`;
+  let html = '';
+  if (isParsing) {
+    html += `<span class="pill pill--parsing">Parsing...</span>`;
+  } else if (dataset && Object.keys(dataset.macro).length > 0) {
+    html += `<span class="pill pill--live">Live Data Active</span>`;
+  } else {
+    html += `<span class="pill">Awaiting Input Data</span>`;
+  }
   container.innerHTML = html;
 }
 
@@ -915,13 +865,6 @@ setInterval(() => {
   $('#liveClock').textContent = now.toISOString().replace('T', ' ').substring(0, 19) + ' UTC';
 }, 1000);
 
-// Initialize "Load Sample" functionality
-$('#sampleBtn').addEventListener('click', () => {
-  isDemo = true;
-  $('#pasteZone').value = '';
-  renderApp(SAMPLE_DATASET);
-});
-
 // Setup Panel Filtering
 $('#watchlistSearch').addEventListener('input', (e) => {
   watchlistState.query = e.target.value;
@@ -938,24 +881,46 @@ $('#macroTableSearch').addEventListener('input', (e) => {
   if (dataset) renderMacroTable(dataset.macro);
 });
 
-// Mock Logic to trigger refresh when paste happens (Would usually connect to `extractIntelligence`)
-$('#pasteZone').addEventListener('input', debounce((e) => {
-  if (e.target.value.trim().length > 10) {
-    const btn = $('#retryBtn');
-    btn.classList.add('spin');
-    // Using sample dataset for demo to avoid live Anthropic API key issues purely on front-end
-    setTimeout(() => {
-      isDemo = false;
-      renderApp(SAMPLE_DATASET);
-      btn.classList.remove('spin');
-      e.target.value = '';
-    }, 1500);
+async function handleInputData(text) {
+  if (text.length < 10) return;
+  const btn = $('#retryBtn');
+  btn.classList.add('spin');
+  $('#errorBanner').classList.add('hidden');
+  
+  isParsing = true;
+  updateStatusPills();
+
+  try {
+    const result = await extractIntelligence(text);
+    renderApp(result.data);
+    $('#pasteZone').value = '';
+  } catch (err) {
+    $('#errorText').textContent = err.message || 'An error occurred parsing the data.';
+    $('#errorBanner').classList.remove('hidden');
+  } finally {
+    btn.classList.remove('spin');
+    isParsing = false;
+    updateStatusPills();
   }
+}
+
+// Trigger real parsing when data is pasted
+$('#pasteZone').addEventListener('input', debounce((e) => {
+  handleInputData(e.target.value.trim());
 }, 1000));
 
-// Initial Render (Load sample dataset so the UI is visible immediately)
-isDemo = true;
-renderApp(SAMPLE_DATASET);
+// Retry button triggers on the current input value manually
+$('#retryBtn').addEventListener('click', () => {
+  handleInputData($('#pasteZone').value.trim());
+});
+
+$('#errorDismiss').addEventListener('click', () => {
+  $('#errorBanner').classList.add('hidden');
+});
+
+// Initial Render (Start with an empty structure to force the "Not available" states until real data is provided)
+const EMPTY_DATASET = normalizeDataset({});
+renderApp(EMPTY_DATASET);
 
 </script>
 </body>
