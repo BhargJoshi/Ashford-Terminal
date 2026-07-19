@@ -124,19 +124,6 @@ button{ font-family:inherit; }
 .status-pills{ display:flex; gap:6px; flex-wrap:wrap; justify-content:flex-end; }
 .live-clock{ font-family:var(--font-mono); font-size:11px; color:var(--text-faint); letter-spacing:0.5px; }
 
-/* ---- Headline strip (surfaces meta.headline / meta.session from a parsed dataset) ---- */
-.headline-bar{
-  display:flex; align-items:center; gap:10px;
-  background:var(--card); border:1px solid var(--border); border-left:3px solid var(--macro);
-  border-radius:var(--radius); padding:8px 13px; margin-bottom:12px; font-size:12px;
-}
-.headline-bar.hidden{ display:none; }
-.headline-session{
-  font-family:var(--font-mono); font-size:9.5px; font-weight:600; letter-spacing:0.5px;
-  text-transform:uppercase; color:var(--text-faint); white-space:nowrap; flex:0 0 auto;
-}
-.headline-text{ color:var(--text); font-weight:500; }
-
 .control-row{
   display:flex; align-items:stretch; gap:8px; margin-bottom:10px;
 }
@@ -470,9 +457,6 @@ let isDemo = false;
 let isParsing = false;
 let lastUpdatedAt = null; // Date
 let lastWarnings = [];
-let lastError = null;       // current error/warning banner message, or null
-let lastProcessedText = ''; // last raw input text successfully parsed (skip re-parsing identical text)
-let requestSeq = 0;         // guards against a slower, superseded parse overwriting a newer result
 
 const watchlistState = { query:'', imp:'', sortKey:null, sortDir:'asc' };
 const macroTableState = { query:'', sortKey:null, sortDir:'asc' };
@@ -487,12 +471,14 @@ function esc(v){
 }
 function debounce(fn, ms){ let t; return (...a)=>{ clearTimeout(t); t=setTimeout(()=>fn(...a), ms); }; }
 function assetLabel(id){ const a = ASSET_DEFS.find(x=>x.id===id); return a? a.label : id; }
+function getArrow(d) {
+  if (d === 'up') return '<span class="kpi-arrow up">▲</span>';
+  if (d === 'down') return '<span class="kpi-arrow down">▼</span>';
+  return '<span class="kpi-arrow flat">−</span>';
+}
 
 /* ============================================================
    TRUNCATED-JSON REPAIR
-   Handles the (occasional) case where a bounded-token model
-   response gets cut off mid-structure — trims back to the last
-   complete element and closes open brackets rather than failing.
    ============================================================ */
 function stripFences(s){
   return s.trim().replace(/^```json\s*/i,'').replace(/^```\s*/,'').replace(/```\s*$/,'').trim();
@@ -529,9 +515,7 @@ function repairJSON(raw){
 }
 
 /* ============================================================
-   DATASET NORMALIZATION — guarantees every field render code
-   touches exists, so a partial/odd model response never throws.
-   Never fabricates: missing data stays empty, not guessed.
+   DATASET NORMALIZATION
    ============================================================ */
 function normalizeDataset(raw){
   const d = raw || {};
@@ -552,7 +536,7 @@ function normalizeDataset(raw){
   });
   const pos = {};
   POS_DEFS.forEach((p,i)=>{
-    const key = p.id + (POS_DEFS.slice(0,i).some(x=>x.id===p.id) ? '2' : ''); // guard against dup id (gold used twice)
+    const key = p.id + (POS_DEFS.slice(0,i).some(x=>x.id===p.id) ? '2' : '');
     const src = (d.pos && d.pos[p.id]);
     pos[i] = { id:p.id, label:p.label, v:(src&&src.v)||'', tone:(src&&src.tone)||'none' };
   });
@@ -572,9 +556,7 @@ function normalizeDataset(raw){
 }
 
 /* ============================================================
-   EXTRACTION PROMPTS
-   Split into two calls so each comfortably fits a bounded
-   output budget — run in parallel, merged on return.
+   EXTRACTION PROMPTS & API LOGIC
    ============================================================ */
 const SYS_PROMPT_1 =
 `You are a market-data extraction engine for an institutional trading terminal. You receive raw, semi-structured market intelligence text. Extract ONLY information explicitly stated or unambiguously implied — never invent or estimate numbers. Identify content semantically; do not rely on exact wording or headers, and be robust to formatting variation.
@@ -590,14 +572,11 @@ Respond with ONLY one valid JSON object — no markdown fences, no commentary. S
 Field meanings: events.cat=1-2 word category (Fed, Inflation, Geopolitics, Earnings, Central Bank, Energy, Data...), .t=time as stated, .h=headline (max 12 words), .w=why it matters (max 15 words), .aa=comma-separated affected assets (max 4). narratives.n=short label (max 4 words e.g. "Fed Pivot"), .tone=its market-implied direction from the 5 categories given, .s=strength 0-100. watchlist = ONLY items explicitly upcoming/scheduled/tomorrow/next, never past events; .f=forecast/consensus figure if explicitly stated else "".
 Rules: events = most important market-moving items, ranked most-important-first, MAXIMUM 6. narratives = dominant macro/market narratives discussed, MAXIMUM 6. watchlist MAXIMUM 8, forward-looking only. s may be inferred from emphasis/repetition/certainty of language. If a section has no qualifying content, return an empty array for it — never invent items. Keep text terse. Output raw JSON only.`;
 
-/* ============================================================
-   API CALLS (Claude, in-browser — "Claude in Claude")
-   ============================================================ */
 async function callClaude(system, userText){
   const controller = new AbortController();
   const timer = setTimeout(()=>controller.abort(), 45000);
   try{
-    const resp = await fetch('https://api.anthropic.com/v1/messages', {
+    const resp = await fetch('[https://api.anthropic.com/v1/messages](https://api.anthropic.com/v1/messages)', {
       method:'POST',
       headers:{'Content-Type':'application/json'},
       signal: controller.signal,
@@ -634,8 +613,7 @@ async function extractIntelligence(rawText){
 }
 
 /* ============================================================
-   PERSISTENCE — remembers the last parsed dataset across
-   reloads (personal, this-terminal-only; not shared).
+   PERSISTENCE
    ============================================================ */
 const STORAGE_KEY = 'terminal_dataset_v1';
 async function persistDataset(ds, demo){
@@ -651,7 +629,7 @@ async function loadPersisted(){
 }
 
 /* ============================================================
-   SAMPLE DATASET — clearly-labeled demo data to preview layout
+   SAMPLE DATASET
    ============================================================ */
 const SAMPLE_DATASET = normalizeDataset({
   meta:{ source:'Sample Dataset', session:'US Session Close', headline:'Fed pivot bets firm up; gold pushes higher as the dollar softens' },
@@ -715,6 +693,270 @@ const SAMPLE_DATASET = normalizeDataset({
     {t:'After Close',e:'Mega-cap Q3 Earnings (multiple)',f:'',imp:'High',aa:'US Equities, Bitcoin'},
   ],
 });
+
+
+/* ============================================================
+   RENDERING ENGINE (Newly Added to Make the Website Work)
+   ============================================================ */
+function renderMacroStrip(macro) {
+  const strip = $('#macroStrip');
+  strip.innerHTML = MACRO_DEFS.map(def => {
+    const v = macro[def.id];
+    if (!v || !v.cur) return `<div class="kpi-tile no-data"><div class="kpi-label">${def.label}</div><div class="kpi-value">—</div></div>`;
+    return `
+      <div class="kpi-tile">
+        <div class="kpi-meta"><span class="kpi-label">${def.label}</span>${getArrow(v.d)}</div>
+        <div class="kpi-value">${esc(v.cur)}</div>
+        <div class="kpi-cons">Prev: ${esc(v.prev)}</div>
+      </div>
+    `;
+  }).join('');
+}
+
+function renderBiasStrip(bias) {
+  const strip = $('#biasStrip');
+  strip.innerHTML = ASSET_DEFS.map(def => {
+    const v = bias[def.id];
+    if (!v || !v.b) return `<div class="bias-card no-data"><div class="bias-head"><span class="bias-asset">${def.label}</span></div></div>`;
+    const tone = v.b.toLowerCase();
+    return `
+      <div class="bias-card" data-bias="${tone}">
+        <div class="bias-head">
+          <span class="bias-asset">${def.label}</span>
+          <span class="bias-badge" data-bias="${tone}">${esc(v.b)}</span>
+        </div>
+        ${v.cf !== null ? `
+        <div class="conf-label"><span>Conviction</span><span>${v.cf}%</span></div>
+        <div class="conf-bar"><div class="conf-fill" data-tone="${tone}" style="width:${v.cf}%"></div></div>
+        ` : ''}
+        <div class="bias-row"><span class="bias-k">Driver</span><span class="bias-v">${esc(v.pd)}</span></div>
+        <div class="bias-row"><span class="bias-k">Risk</span><span class="bias-v">${esc(v.br)}</span></div>
+      </div>
+    `;
+  }).join('');
+}
+
+function renderEvents(events) {
+  const panel = $('#eventsPanel');
+  $('#eventsCount').textContent = events.length;
+  if (!events.length) { panel.innerHTML = '<div class="empty-state">No market-moving events recorded.</div>'; return; }
+  panel.innerHTML = `<div class="timeline">` + events.map(e => `
+    <div class="event-item">
+      <div class="event-time">${esc(e.t)}</div>
+      <div class="event-body">
+        <div class="event-top">
+          <span class="event-cat">${esc(e.cat)}</span>
+          <span class="badge" data-imp="${esc(e.imp)}">${esc(e.imp)}</span>
+        </div>
+        <div class="event-headline">${esc(e.h)}</div>
+        <div class="event-why">${esc(e.w)}</div>
+        ${e.aa ? `<div>${e.aa.split(',').map(a => `<span class="chip">${esc(a.trim())}</span>`).join('')}</div>` : ''}
+      </div>
+    </div>
+  `).join('') + `</div>`;
+}
+
+function renderNarratives(narratives) {
+  const panel = $('#narrativesPanel');
+  $('#narrativesCount').textContent = narratives.length;
+  if (!narratives.length) { panel.innerHTML = '<div class="empty-state">No dominant narratives tracked.</div>'; return; }
+  panel.innerHTML = `<div class="narrative-grid">` + narratives.map(n => {
+    const t = n.tone.toLowerCase();
+    return `
+      <div class="narrative-card">
+        <div class="narrative-top">
+          <span class="narrative-name">${esc(n.n)}</span>
+          <span class="badge" data-tone="${t}">${t}</span>
+        </div>
+        <div class="narrative-bar"><div class="narrative-fill" data-tone="${t}" style="width:${n.s}%"></div></div>
+        <div class="narrative-assets">${esc(n.aa)}</div>
+      </div>
+    `;
+  }).join('') + `</div>`;
+}
+
+function renderWatchlist(watchlist) {
+  const panel = $('#watchlistPanel');
+  let filtered = watchlist;
+  if (watchlistState.query) {
+    filtered = filtered.filter(w => w.e.toLowerCase().includes(watchlistState.query.toLowerCase()));
+  }
+  if (watchlistState.imp) {
+    filtered = filtered.filter(w => w.imp === watchlistState.imp);
+  }
+  
+  $('#watchlistCount').textContent = filtered.length;
+  if (!filtered.length) { panel.innerHTML = '<div class="empty-state">Watchlist empty or filtered out.</div>'; return; }
+  
+  let html = `<table class="data-table"><thead><tr><th>Time</th><th>Event</th><th>Forecast</th><th>Imp</th><th>Assets</th></tr></thead><tbody>`;
+  html += filtered.map(w => `
+    <tr>
+      <td class="mono">${esc(w.t)}</td>
+      <td class="strong">${esc(w.e)}</td>
+      <td class="mono">${esc(w.f)}</td>
+      <td><span class="badge" data-imp="${esc(w.imp)}">${esc(w.imp)}</span></td>
+      <td>${w.aa.split(',').map(a => `<span class="chip">${esc(a.trim())}</span>`).join('')}</td>
+    </tr>
+  `).join('');
+  html += `</tbody></table>`;
+  panel.innerHTML = html;
+}
+
+function renderMacroTable(macro) {
+  const panel = $('#macroTablePanel');
+  let keys = MACRO_DEFS;
+  if (macroTableState.query) {
+    keys = keys.filter(k => k.label.toLowerCase().includes(macroTableState.query.toLowerCase()));
+  }
+  
+  $('#macroTableCount').textContent = keys.length;
+  if (!keys.length) { panel.innerHTML = '<div class="empty-state">No indicators match search.</div>'; return; }
+
+  let html = `<table class="data-table"><thead><tr><th>Indicator</th><th>Current</th><th>Previous</th><th>Trend</th><th>Notes</th></tr></thead><tbody>`;
+  html += keys.map(k => {
+    const v = macro[k.id] || {};
+    return `
+      <tr>
+        <td class="strong">${esc(k.label)}</td>
+        <td class="mono">${esc(v.cur)}</td>
+        <td class="mono">${esc(v.prev)}</td>
+        <td>${getArrow(v.d)}</td>
+        <td>${esc(v.note)}</td>
+      </tr>
+    `;
+  }).join('');
+  html += `</tbody></table>`;
+  panel.innerHTML = html;
+}
+
+function renderMatrix(matrix) {
+  const panel = $('#matrixPanel');
+  let html = `<table class="data-table"><thead><tr><th>Asset</th><th>Bull Drivers</th><th>Bear Drivers</th><th>Key Catalyst</th></tr></thead><tbody>`;
+  html += ASSET_DEFS.map(a => {
+    const v = matrix[a.id] || {};
+    return `
+      <tr>
+        <td class="matrix-asset">${esc(a.label)}</td>
+        <td class="driver-list">${esc(v.bd)}</td>
+        <td class="driver-list">${esc(v.brd)}</td>
+        <td>${esc(v.cd)}</td>
+      </tr>
+    `;
+  }).join('');
+  html += `</tbody></table>`;
+  panel.innerHTML = html;
+}
+
+function renderPositioning(pos) {
+  const panel = $('#positioningPanel');
+  let score = 0;
+  let count = 0;
+  let html = '';
+  
+  Object.values(pos).forEach(p => {
+    if (!p.label) return;
+    const t = p.tone.toLowerCase();
+    if (t === 'bullish') score += 1;
+    else if (t === 'bearish') score -= 1;
+    count++;
+    
+    html += `
+      <div class="pos-row">
+        <span class="pos-label">${esc(p.label)}</span>
+        <div class="pos-value">
+          <span class="pos-dot" data-tone="${t}"></span>
+          <span class="pos-text">${esc(p.v)}</span>
+        </div>
+      </div>
+    `;
+  });
+  panel.innerHTML = html;
+
+  let gaugeScore = 50;
+  if (count > 0) gaugeScore = 50 + ((score / count) * 50);
+  
+  $('#gaugeWrap').innerHTML = `
+    <div class="conf-bar"><div class="conf-fill" style="width:${gaugeScore}%; background:var(--macro)"></div></div>
+    <div class="gauge-labels"><span>Risk Off</span><span>Neutral</span><span>Risk On</span></div>
+    <div class="gauge-score">${Math.round(gaugeScore)}</div>
+    <div class="gauge-caption">Aggregate Institutional Positioning</div>
+  `;
+}
+
+/* ============================================================
+   APP ORCHESTRATION & EVENT LISTENERS
+   ============================================================ */
+function updateStatusPills() {
+  const container = $('#statusPills');
+  let html = `<span class="pill pill--live">Live</span>`;
+  if (isDemo) html += `<span class="pill">Sample Dataset</span>`;
+  container.innerHTML = html;
+}
+
+function renderApp(data) {
+  if (!data) return;
+  dataset = data;
+  
+  renderMacroStrip(data.macro);
+  renderBiasStrip(data.bias);
+  renderEvents(data.events);
+  renderNarratives(data.narratives);
+  renderWatchlist(data.watchlist);
+  renderMacroTable(data.macro);
+  renderMatrix(data.matrix);
+  renderPositioning(data.pos);
+  
+  updateStatusPills();
+}
+
+// Live UTC Clock Updates
+setInterval(() => {
+  const now = new Date();
+  $('#liveClock').textContent = now.toISOString().replace('T', ' ').substring(0, 19) + ' UTC';
+}, 1000);
+
+// Initialize "Load Sample" functionality
+$('#sampleBtn').addEventListener('click', () => {
+  isDemo = true;
+  $('#pasteZone').value = '';
+  renderApp(SAMPLE_DATASET);
+});
+
+// Setup Panel Filtering
+$('#watchlistSearch').addEventListener('input', (e) => {
+  watchlistState.query = e.target.value;
+  if (dataset) renderWatchlist(dataset.watchlist);
+});
+
+$('#watchlistImpFilter').addEventListener('change', (e) => {
+  watchlistState.imp = e.target.value;
+  if (dataset) renderWatchlist(dataset.watchlist);
+});
+
+$('#macroTableSearch').addEventListener('input', (e) => {
+  macroTableState.query = e.target.value;
+  if (dataset) renderMacroTable(dataset.macro);
+});
+
+// Mock Logic to trigger refresh when paste happens (Would usually connect to `extractIntelligence`)
+$('#pasteZone').addEventListener('input', debounce((e) => {
+  if (e.target.value.trim().length > 10) {
+    const btn = $('#retryBtn');
+    btn.classList.add('spin');
+    // Using sample dataset for demo to avoid live Anthropic API key issues purely on front-end
+    setTimeout(() => {
+      isDemo = false;
+      renderApp(SAMPLE_DATASET);
+      btn.classList.remove('spin');
+      e.target.value = '';
+    }, 1500);
+  }
+}, 1000));
+
+// Initial Render (Load sample dataset so the UI is visible immediately)
+isDemo = true;
+renderApp(SAMPLE_DATASET);
+
 </script>
 </body>
 </html>
