@@ -124,6 +124,19 @@ button{ font-family:inherit; }
 .status-pills{ display:flex; gap:6px; flex-wrap:wrap; justify-content:flex-end; }
 .live-clock{ font-family:var(--font-mono); font-size:11px; color:var(--text-faint); letter-spacing:0.5px; }
 
+/* ---- Headline strip (surfaces meta.headline / meta.session from a parsed dataset) ---- */
+.headline-bar{
+  display:flex; align-items:center; gap:10px;
+  background:var(--card); border:1px solid var(--border); border-left:3px solid var(--macro);
+  border-radius:var(--radius); padding:8px 13px; margin-bottom:12px; font-size:12px;
+}
+.headline-bar.hidden{ display:none; }
+.headline-session{
+  font-family:var(--font-mono); font-size:9.5px; font-weight:600; letter-spacing:0.5px;
+  text-transform:uppercase; color:var(--text-faint); white-space:nowrap; flex:0 0 auto;
+}
+.headline-text{ color:var(--text); font-weight:500; }
+
 .control-row{
   display:flex; align-items:stretch; gap:8px; margin-bottom:10px;
 }
@@ -457,6 +470,9 @@ let isDemo = false;
 let isParsing = false;
 let lastUpdatedAt = null; // Date
 let lastWarnings = [];
+let lastError = null;       // current error/warning banner message, or null
+let lastProcessedText = ''; // last raw input text successfully parsed (skip re-parsing identical text)
+let requestSeq = 0;         // guards against a slower, superseded parse overwriting a newer result
 
 const watchlistState = { query:'', imp:'', sortKey:null, sortDir:'asc' };
 const macroTableState = { query:'', sortKey:null, sortDir:'asc' };
