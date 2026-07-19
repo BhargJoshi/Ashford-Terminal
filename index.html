@@ -1,0 +1,704 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ashford Capital — Market Intelligence Terminal</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+/* ============================================================
+   DESIGN TOKENS
+   ============================================================ */
+:root{
+  --bg:            #0B0F14;
+  --bg-inset:      #080B0F;
+  --card:          #141A22;
+  --card-raised:   #171E27;
+  --border:        #252D38;
+  --border-soft:   #1B222C;
+
+  --bull:          #2FBF71;
+  --bull-dim:      rgba(47,191,113,0.13);
+  --bear:          #F2453D;
+  --bear-dim:      rgba(242,69,61,0.13);
+  --neutral:       #F0A63D;
+  --neutral-dim:   rgba(240,166,61,0.13);
+  --macro:         #4380FA;
+  --macro-dim:     rgba(67,128,250,0.13);
+  --warn:          #E8C547;
+  --warn-dim:      rgba(232,197,71,0.13);
+
+  --text:          #EDF1F7;
+  --text-dim:      #8D96A6;
+  --text-faint:    #545D6B;
+
+  --font-sans: 'IBM Plex Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --font-mono: 'IBM Plex Mono', 'SFMono-Regular', Consolas, monospace;
+
+  --radius: 2px;
+  --gap: 12px;
+}
+
+*,*::before,*::after{ box-sizing:border-box; }
+html,body{ margin:0; padding:0; }
+body{
+  background:var(--bg);
+  color:var(--text);
+  font-family:var(--font-sans);
+  font-size:13px;
+  line-height:1.45;
+  -webkit-font-smoothing:antialiased;
+}
+::selection{ background:var(--macro); color:#fff; }
+
+@media (prefers-reduced-motion: reduce){
+  *,*::before,*::after{ animation-duration:0.001ms !important; transition-duration:0.001ms !important; }
+}
+
+a{ color:var(--macro); }
+button{ font-family:inherit; }
+:focus-visible{ outline:2px solid var(--macro); outline-offset:1px; }
+
+/* ============================================================
+   PRIMITIVES
+   ============================================================ */
+.mono{ font-family:var(--font-mono); }
+.eyebrow{
+  font-size:10.5px; font-weight:600; letter-spacing:0.9px; text-transform:uppercase;
+  color:var(--text-dim);
+}
+.hidden{ display:none !important; }
+
+.pill{
+  display:inline-flex; align-items:center; gap:5px;
+  font-family:var(--font-mono); font-size:10.5px; font-weight:500; letter-spacing:0.3px;
+  padding:4px 8px; border-radius:var(--radius);
+  border:1px solid var(--border); color:var(--text-dim); background:var(--card);
+  white-space:nowrap;
+}
+.pill.pill--live{ color:var(--bull); border-color:rgba(47,191,113,0.35); background:var(--bull-dim); }
+.pill.pill--live::before{ content:''; width:6px; height:6px; border-radius:50%; background:var(--bull); box-shadow:0 0 0 2px var(--bull-dim); }
+.pill.pill--parsing{ color:var(--warn); border-color:rgba(232,197,71,0.35); background:var(--warn-dim); }
+.pill.pill--parsing::before{ content:''; width:6px; height:6px; border-radius:50%; background:var(--warn); animation:pulse 1s ease-in-out infinite; }
+.pill.pill--error{ color:var(--bear); border-color:rgba(242,69,61,0.35); background:var(--bear-dim); }
+@keyframes pulse{ 0%,100%{opacity:1;} 50%{opacity:0.35;} }
+
+.badge{
+  display:inline-block; font-family:var(--font-mono); font-size:9.5px; font-weight:600;
+  letter-spacing:0.5px; text-transform:uppercase; padding:2px 6px; border-radius:var(--radius);
+  border:1px solid transparent;
+}
+.badge[data-tone="bullish"]{ color:var(--bull); background:var(--bull-dim); border-color:rgba(47,191,113,0.3); }
+.badge[data-tone="bearish"]{ color:var(--bear); background:var(--bear-dim); border-color:rgba(242,69,61,0.3); }
+.badge[data-tone="neutral"]{ color:var(--neutral); background:var(--neutral-dim); border-color:rgba(240,166,61,0.3); }
+.badge[data-tone="macro"]{ color:var(--macro); background:var(--macro-dim); border-color:rgba(67,128,250,0.3); }
+.badge[data-tone="warning"]{ color:var(--warn); background:var(--warn-dim); border-color:rgba(232,197,71,0.3); }
+.badge[data-tone="none"]{ color:var(--text-faint); background:transparent; border-color:var(--border); }
+
+.badge[data-imp="High"]{ color:#0B0F14; background:var(--warn); border-color:var(--warn); }
+.badge[data-imp="Medium"]{ color:var(--warn); background:var(--warn-dim); border-color:rgba(232,197,71,0.35); }
+.badge[data-imp="Low"]{ color:var(--text-faint); background:transparent; border-color:var(--border); }
+
+.chip{
+  display:inline-block; font-size:10.5px; font-weight:500; color:var(--text-dim);
+  background:var(--bg-inset); border:1px solid var(--border-soft); border-radius:var(--radius);
+  padding:2px 7px; margin:2px 4px 2px 0;
+}
+
+/* ============================================================
+   SHELL / LAYOUT
+   ============================================================ */
+.terminal{ max-width:1680px; margin:0 auto; padding:16px 20px 40px; }
+
+.term-header{
+  display:flex; align-items:flex-start; justify-content:space-between; gap:16px;
+  padding-bottom:14px; margin-bottom:14px; border-bottom:1px solid var(--border);
+  flex-wrap:wrap;
+}
+.brand{ display:flex; flex-direction:column; gap:2px; }
+.brand-name{ font-size:12px; font-weight:600; letter-spacing:1.4px; color:var(--text-dim); text-transform:uppercase; }
+.brand-title{ font-size:19px; font-weight:600; letter-spacing:0.2px; color:var(--text); }
+.header-right{ display:flex; flex-direction:column; align-items:flex-end; gap:8px; }
+.status-pills{ display:flex; gap:6px; flex-wrap:wrap; justify-content:flex-end; }
+.live-clock{ font-family:var(--font-mono); font-size:11px; color:var(--text-faint); letter-spacing:0.5px; }
+
+.control-row{
+  display:flex; align-items:stretch; gap:8px; margin-bottom:10px;
+}
+.paste-wrap{
+  flex:1; display:flex; align-items:flex-start; gap:8px;
+  background:var(--card); border:1px solid var(--border); border-radius:var(--radius);
+  padding:9px 12px; transition:border-color .15s ease;
+}
+.paste-wrap:focus-within{ border-color:var(--macro); }
+.prompt-glyph{ font-family:var(--font-mono); color:var(--macro); font-size:14px; line-height:1.5; user-select:none; }
+#pasteZone{
+  flex:1; resize:vertical; min-height:20px; max-height:220px;
+  background:transparent; border:none; outline:none; color:var(--text);
+  font-family:var(--font-mono); font-size:12.5px; line-height:1.5;
+}
+#pasteZone::placeholder{ color:var(--text-faint); font-family:var(--font-sans); }
+
+.btn{
+  font-size:11px; font-weight:600; letter-spacing:0.4px; text-transform:uppercase;
+  background:var(--card); color:var(--text-dim); border:1px solid var(--border);
+  border-radius:var(--radius); padding:0 14px; cursor:pointer; white-space:nowrap;
+  transition:border-color .15s ease, color .15s ease, background .15s ease;
+}
+.btn:hover{ border-color:var(--macro); color:var(--text); }
+.btn-icon{
+  width:36px; flex:0 0 36px; display:flex; align-items:center; justify-content:center;
+  background:var(--card); color:var(--text-dim); border:1px solid var(--border);
+  border-radius:var(--radius); cursor:pointer; font-size:15px;
+  transition:border-color .15s ease, color .15s ease, transform .15s ease;
+}
+.btn-icon:hover{ border-color:var(--macro); color:var(--text); }
+.btn-icon.spin{ animation:spin .6s linear infinite; }
+@keyframes spin{ to{ transform:rotate(360deg); } }
+
+.error-banner{
+  display:flex; align-items:center; justify-content:space-between; gap:12px;
+  background:var(--bear-dim); border:1px solid rgba(242,69,61,0.35); color:var(--bear);
+  border-radius:var(--radius); padding:8px 14px; margin-bottom:12px; font-size:12px;
+}
+.error-banner button{ background:transparent; border:none; color:var(--bear); cursor:pointer; font-size:15px; line-height:1; }
+
+.section-label{
+  font-size:10.5px; font-weight:600; letter-spacing:1px; text-transform:uppercase;
+  color:var(--text-faint); margin:22px 0 8px; display:flex; align-items:center; gap:8px;
+}
+.section-label::after{ content:''; flex:1; height:1px; background:var(--border-soft); }
+.section-label:first-of-type{ margin-top:4px; }
+
+/* ============================================================
+   MACRO STATUS STRIP
+   ============================================================ */
+.macro-grid{
+  display:grid; grid-template-columns:repeat(6, 1fr); gap:1px;
+  background:var(--border); border:1px solid var(--border); border-radius:var(--radius); overflow:hidden;
+}
+.kpi-tile{
+  background:var(--card); padding:10px 12px; border-left:3px solid var(--macro);
+  display:flex; flex-direction:column; gap:4px; min-height:88px;
+  transition:background .15s ease;
+}
+.kpi-tile:hover{ background:var(--card-raised); }
+.kpi-tile.no-data{ border-left-color:var(--border); opacity:0.5; }
+.kpi-label{ font-size:9.5px; font-weight:600; letter-spacing:0.6px; text-transform:uppercase; color:var(--text-dim); }
+.kpi-value{ font-family:var(--font-mono); font-size:19px; font-weight:600; color:var(--text); line-height:1.1; }
+.kpi-meta{ display:flex; align-items:center; justify-content:space-between; font-family:var(--font-mono); font-size:10.5px; color:var(--text-faint); }
+.kpi-arrow{ font-size:11px; }
+.kpi-arrow.up{ color:var(--bull); }
+.kpi-arrow.down{ color:var(--bear); }
+.kpi-arrow.flat{ color:var(--text-faint); }
+.kpi-cons{ font-size:9.5px; color:var(--text-faint); font-family:var(--font-mono); }
+
+/* ============================================================
+   MARKET BIAS STRIP
+   ============================================================ */
+.bias-grid{ display:grid; grid-template-columns:repeat(5, 1fr); gap:var(--gap); }
+.bias-card{
+  background:var(--card); border:1px solid var(--border); border-top:3px solid var(--neutral);
+  border-radius:var(--radius); padding:13px 14px; display:flex; flex-direction:column; gap:9px;
+}
+.bias-card.no-data{ border-top-color:var(--border); opacity:0.5; }
+.bias-card[data-bias="bullish"]{ border-top-color:var(--bull); }
+.bias-card[data-bias="bearish"]{ border-top-color:var(--bear); }
+.bias-card[data-bias="neutral"]{ border-top-color:var(--neutral); }
+.bias-head{ display:flex; align-items:center; justify-content:space-between; }
+.bias-asset{ font-size:12.5px; font-weight:600; letter-spacing:0.3px; }
+.bias-badge{ font-family:var(--font-mono); font-size:9.5px; font-weight:700; letter-spacing:0.5px; padding:2px 7px; border-radius:var(--radius); text-transform:uppercase; }
+.bias-badge[data-bias="bullish"]{ color:var(--bull); background:var(--bull-dim); }
+.bias-badge[data-bias="bearish"]{ color:var(--bear); background:var(--bear-dim); }
+.bias-badge[data-bias="neutral"]{ color:var(--neutral); background:var(--neutral-dim); }
+.bias-badge[data-bias="none"]{ color:var(--text-faint); background:transparent; }
+.conf-label{ display:flex; justify-content:space-between; font-size:9.5px; color:var(--text-faint); font-family:var(--font-mono); margin-bottom:3px; text-transform:uppercase; letter-spacing:0.4px; }
+.conf-bar{ height:4px; background:var(--bg-inset); border-radius:2px; overflow:hidden; }
+.conf-fill{ height:100%; background:var(--macro); border-radius:2px; transition:width .3s ease; }
+.bias-row{ display:flex; gap:6px; font-size:11.5px; }
+.bias-k{ flex:0 0 52px; color:var(--text-faint); font-size:9.5px; font-weight:600; letter-spacing:0.4px; text-transform:uppercase; padding-top:1px; }
+.bias-v{ color:var(--text-dim); flex:1; }
+
+/* ============================================================
+   PANEL CHROME (shared by main + bottom grids)
+   ============================================================ */
+.main-grid{ display:grid; grid-template-columns:1fr 1fr 1.35fr; gap:var(--gap); align-items:start; }
+.bottom-grid{ display:grid; grid-template-columns:1.3fr 1.15fr 0.85fr; gap:var(--gap); align-items:start; }
+
+.panel{ background:var(--card); border:1px solid var(--border); border-radius:var(--radius); display:flex; flex-direction:column; overflow:hidden; }
+.panel-head{ display:flex; align-items:center; justify-content:space-between; padding:10px 13px; border-bottom:1px solid var(--border); }
+.panel-title{ font-size:10.5px; font-weight:600; letter-spacing:0.8px; text-transform:uppercase; color:var(--text-dim); }
+.panel-count{ font-family:var(--font-mono); font-size:10px; color:var(--text-faint); }
+.panel-body{ padding:6px; max-height:520px; overflow-y:auto; }
+.panel-body.no-pad{ padding:0; }
+
+.empty-state{ padding:28px 16px; text-align:center; color:var(--text-faint); font-size:11.5px; }
+
+/* ---- Events timeline ---- */
+.timeline{ position:relative; }
+.event-item{ position:relative; display:flex; gap:10px; padding:9px 8px; border-radius:var(--radius); }
+.event-item:hover{ background:var(--card-raised); }
+.event-item:not(:last-child){ border-bottom:1px solid var(--border-soft); }
+.event-time{ flex:0 0 58px; font-family:var(--font-mono); font-size:10px; color:var(--text-faint); padding-top:2px; }
+.event-body{ flex:1; min-width:0; }
+.event-top{ display:flex; align-items:center; gap:6px; margin-bottom:3px; }
+.event-cat{ font-size:9px; font-weight:600; letter-spacing:0.5px; text-transform:uppercase; color:var(--macro); }
+.event-headline{ font-size:12px; font-weight:500; color:var(--text); margin-bottom:2px; }
+.event-why{ font-size:11px; color:var(--text-dim); margin-bottom:5px; }
+
+/* ---- Narratives ---- */
+.narrative-grid{ display:flex; flex-direction:column; gap:6px; }
+.narrative-card{ border:1px solid var(--border-soft); border-radius:var(--radius); padding:9px 10px; background:var(--bg-inset); }
+.narrative-top{ display:flex; align-items:center; justify-content:space-between; margin-bottom:6px; }
+.narrative-name{ font-size:12px; font-weight:500; }
+.narrative-bar{ height:3px; background:var(--border-soft); border-radius:2px; overflow:hidden; margin-bottom:6px; }
+.narrative-fill{ height:100%; border-radius:2px; }
+.narrative-fill[data-tone="bullish"]{ background:var(--bull); }
+.narrative-fill[data-tone="bearish"]{ background:var(--bear); }
+.narrative-fill[data-tone="neutral"]{ background:var(--neutral); }
+.narrative-fill[data-tone="macro"]{ background:var(--macro); }
+.narrative-fill[data-tone="warning"]{ background:var(--warn); }
+.narrative-assets{ font-size:10.5px; color:var(--text-faint); }
+
+/* ---- Tables ---- */
+.table-toolbar{ display:flex; gap:8px; padding:8px; border-bottom:1px solid var(--border); }
+.search-input{
+  flex:1; background:var(--bg-inset); border:1px solid var(--border); color:var(--text);
+  border-radius:var(--radius); padding:6px 9px; font-size:11.5px; font-family:var(--font-sans); outline:none;
+}
+.search-input:focus{ border-color:var(--macro); }
+.imp-filter{
+  background:var(--bg-inset); border:1px solid var(--border); color:var(--text-dim);
+  border-radius:var(--radius); padding:6px 8px; font-size:11px; font-family:var(--font-sans); outline:none;
+}
+.data-table{ width:100%; border-collapse:collapse; font-size:11.5px; }
+.data-table th{
+  text-align:left; font-size:9.5px; font-weight:600; letter-spacing:0.5px; text-transform:uppercase;
+  color:var(--text-faint); padding:7px 10px; border-bottom:1px solid var(--border); cursor:pointer;
+  user-select:none; white-space:nowrap; position:sticky; top:0; background:var(--card);
+}
+.data-table th:hover{ color:var(--text-dim); }
+.data-table th .sort-ind{ font-size:9px; margin-left:3px; opacity:0.5; }
+.data-table td{ padding:7px 10px; border-bottom:1px solid var(--border-soft); vertical-align:top; color:var(--text-dim); }
+.data-table tbody tr:hover{ background:var(--card-raised); }
+.data-table td.mono, .data-table .mono{ font-family:var(--font-mono); }
+.data-table td.strong{ color:var(--text); font-weight:500; }
+
+/* ---- Asset driver matrix ---- */
+.matrix-asset{ color:var(--text); font-weight:600; white-space:nowrap; }
+.driver-list{ font-size:11px; color:var(--text-dim); }
+
+/* ---- Institutional positioning ---- */
+.pos-list{ display:flex; flex-direction:column; }
+.pos-row{ display:flex; align-items:center; justify-content:space-between; padding:8px 13px; border-bottom:1px solid var(--border-soft); }
+.pos-row:last-child{ border-bottom:none; }
+.pos-label{ font-size:10.5px; color:var(--text-dim); font-weight:500; letter-spacing:0.2px; text-transform:uppercase; font-size:10px; }
+.pos-value{ display:flex; align-items:center; gap:7px; }
+.pos-dot{ width:7px; height:7px; border-radius:50%; flex:0 0 7px; }
+.pos-dot[data-tone="bullish"]{ background:var(--bull); box-shadow:0 0 0 3px var(--bull-dim); }
+.pos-dot[data-tone="bearish"]{ background:var(--bear); box-shadow:0 0 0 3px var(--bear-dim); }
+.pos-dot[data-tone="neutral"]{ background:var(--neutral); box-shadow:0 0 0 3px var(--neutral-dim); }
+.pos-dot[data-tone="macro"]{ background:var(--macro); box-shadow:0 0 0 3px var(--macro-dim); }
+.pos-dot[data-tone="warning"]{ background:var(--warn); box-shadow:0 0 0 3px var(--warn-dim); }
+.pos-dot[data-tone="none"]{ background:var(--text-faint); box-shadow:none; }
+.pos-text{ font-family:var(--font-mono); font-size:11px; color:var(--text); }
+
+.gauge-wrap{ padding:14px 16px 4px; text-align:center; border-bottom:1px solid var(--border); }
+.gauge-score{ font-family:var(--font-mono); font-size:22px; font-weight:600; margin-top:2px; }
+.gauge-caption{ font-size:9.5px; color:var(--text-faint); letter-spacing:0.3px; margin-top:2px; }
+.gauge-labels{ display:flex; justify-content:space-between; font-size:9px; color:var(--text-faint); letter-spacing:0.4px; text-transform:uppercase; padding:0 6px; margin-top:-4px; }
+
+.term-footer{ margin-top:26px; padding-top:14px; border-top:1px solid var(--border-soft); display:flex; justify-content:space-between; font-size:10px; color:var(--text-faint); letter-spacing:0.3px; flex-wrap:wrap; gap:6px; }
+
+/* ============================================================
+   RESPONSIVE
+   ============================================================ */
+@media (max-width:1400px){
+  .macro-grid{ grid-template-columns:repeat(4,1fr); }
+  .bias-grid{ grid-template-columns:repeat(3,1fr); }
+}
+@media (max-width:1100px){
+  .main-grid, .bottom-grid{ grid-template-columns:1fr; }
+}
+@media (max-width:720px){
+  .macro-grid{ grid-template-columns:repeat(2,1fr); }
+  .bias-grid{ grid-template-columns:repeat(2,1fr); }
+  .term-header{ flex-direction:column; }
+  .header-right{ align-items:flex-start; }
+  .status-pills{ justify-content:flex-start; }
+}
+</style>
+</head>
+<body>
+<div class="terminal" id="app">
+
+  <header class="term-header">
+    <div class="brand">
+      <div class="brand-name">Ashford Capital</div>
+      <div class="brand-title">Market Intelligence Terminal</div>
+    </div>
+    <div class="header-right">
+      <div class="live-clock" id="liveClock">—</div>
+      <div class="status-pills" id="statusPills"></div>
+    </div>
+  </header>
+
+  <div class="control-row">
+    <label class="paste-wrap" for="pasteZone">
+      <span class="prompt-glyph">▍</span>
+      <textarea id="pasteZone" rows="1" placeholder="Paste raw market intelligence to refresh the terminal — parses automatically, no submit needed…"></textarea>
+    </label>
+    <button class="btn-icon" id="retryBtn" title="Re-run parse on current input">⟳</button>
+    <button class="btn" id="sampleBtn" title="Load sample dataset to preview the layout">Load Sample</button>
+  </div>
+
+  <div class="error-banner hidden" id="errorBanner">
+    <span id="errorText"></span>
+    <button id="errorDismiss" aria-label="Dismiss">×</button>
+  </div>
+
+  <div class="section-label">Macro Status</div>
+  <section class="macro-grid" id="macroStrip"></section>
+
+  <div class="section-label">Market Bias</div>
+  <section class="bias-grid" id="biasStrip"></section>
+
+  <div class="section-label">Dashboard</div>
+  <main class="main-grid">
+    <div class="panel">
+      <div class="panel-head"><span class="panel-title">Market Moving Events</span><span class="panel-count" id="eventsCount"></span></div>
+      <div class="panel-body" id="eventsPanel"></div>
+    </div>
+    <div class="panel">
+      <div class="panel-head"><span class="panel-title">Narrative Monitor</span><span class="panel-count" id="narrativesCount"></span></div>
+      <div class="panel-body" id="narrativesPanel"></div>
+    </div>
+    <div class="panel">
+      <div class="panel-head"><span class="panel-title">Tomorrow Watchlist</span><span class="panel-count" id="watchlistCount"></span></div>
+      <div class="table-toolbar">
+        <input class="search-input" id="watchlistSearch" placeholder="Search watchlist…">
+        <select class="imp-filter" id="watchlistImpFilter">
+          <option value="">All</option><option value="High">High</option><option value="Medium">Medium</option><option value="Low">Low</option>
+        </select>
+      </div>
+      <div class="panel-body no-pad" id="watchlistPanel"></div>
+    </div>
+  </main>
+
+  <div class="section-label">Institutional Detail</div>
+  <section class="bottom-grid">
+    <div class="panel">
+      <div class="panel-head"><span class="panel-title">US Macro Dashboard</span><span class="panel-count" id="macroTableCount"></span></div>
+      <div class="table-toolbar">
+        <input class="search-input" id="macroTableSearch" placeholder="Search indicators…">
+      </div>
+      <div class="panel-body no-pad" id="macroTablePanel"></div>
+    </div>
+    <div class="panel">
+      <div class="panel-head"><span class="panel-title">Asset Driver Matrix</span></div>
+      <div class="panel-body no-pad" id="matrixPanel"></div>
+    </div>
+    <div class="panel">
+      <div class="panel-head"><span class="panel-title">Institutional Positioning</span></div>
+      <div class="gauge-wrap" id="gaugeWrap"></div>
+      <div class="panel-body no-pad"><div class="pos-list" id="positioningPanel"></div></div>
+    </div>
+  </section>
+
+  <footer class="term-footer">
+    <span>Parsed live via Claude · nothing leaves this session except the extraction call</span>
+    <span id="footerRight">Ashford Capital — internal use</span>
+  </footer>
+
+</div>
+<script>
+/* ============================================================
+   CONFIG — fixed schema definitions (order matters, matches spec)
+   ============================================================ */
+const MACRO_DEFS = [
+  {id:'fed',   label:'Fed Funds Rate'},
+  {id:'cpiH',  label:'Headline CPI'},
+  {id:'cpiC',  label:'Core CPI'},
+  {id:'ppiH',  label:'Headline PPI'},
+  {id:'ppiC',  label:'Core PPI'},
+  {id:'real',  label:'Real Rate'},
+  {id:'y2',    label:'2Y Yield'},
+  {id:'y10',   label:'10Y Yield'},
+  {id:'dxy',   label:'DXY'},
+  {id:'wti',   label:'WTI'},
+  {id:'brent', label:'Brent'},
+  {id:'vix',   label:'VIX'},
+];
+const ASSET_DEFS = [
+  {id:'gold',     label:'Gold'},
+  {id:'nifty',    label:'Nifty'},
+  {id:'usEq',     label:'US Equities'},
+  {id:'usBonds',  label:'US Bonds'},
+  {id:'btc',      label:'Bitcoin'},
+];
+const POS_DEFS = [
+  {id:'risk',      label:'Risk On / Risk Off'},
+  {id:'inflation', label:'Inflation Theme'},
+  {id:'growth',    label:'Growth Theme'},
+  {id:'liquidity', label:'Liquidity Theme'},
+  {id:'fed',       label:'Fed Theme'},
+  {id:'dollar',    label:'Dollar Theme'},
+  {id:'bond',      label:'Bond Theme'},
+  {id:'gold',      label:'Gold Theme'},
+];
+
+/* ============================================================
+   STATE
+   ============================================================ */
+let dataset = null;       // normalized dataset currently rendered, or null
+let isDemo = false;
+let isParsing = false;
+let lastUpdatedAt = null; // Date
+let lastWarnings = [];
+
+const watchlistState = { query:'', imp:'', sortKey:null, sortDir:'asc' };
+const macroTableState = { query:'', sortKey:null, sortDir:'asc' };
+
+/* ============================================================
+   UTILITIES
+   ============================================================ */
+function $(sel, root){ return (root||document).querySelector(sel); }
+function esc(v){
+  if(v===null||v===undefined) return '';
+  return String(v).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+function debounce(fn, ms){ let t; return (...a)=>{ clearTimeout(t); t=setTimeout(()=>fn(...a), ms); }; }
+function assetLabel(id){ const a = ASSET_DEFS.find(x=>x.id===id); return a? a.label : id; }
+
+/* ============================================================
+   TRUNCATED-JSON REPAIR
+   Handles the (occasional) case where a bounded-token model
+   response gets cut off mid-structure — trims back to the last
+   complete element and closes open brackets rather than failing.
+   ============================================================ */
+function stripFences(s){
+  return s.trim().replace(/^```json\s*/i,'').replace(/^```\s*/,'').replace(/```\s*$/,'').trim();
+}
+function balanceBrackets(s){
+  s = s.replace(/,\s*$/,'');
+  const stack = [];
+  let inStr = false, escNext = false;
+  for(let i=0;i<s.length;i++){
+    const ch = s[i];
+    if(inStr){
+      if(escNext){ escNext=false; }
+      else if(ch==='\\'){ escNext=true; }
+      else if(ch==='"'){ inStr=false; }
+      continue;
+    }
+    if(ch==='"'){ inStr=true; continue; }
+    if(ch==='{'||ch==='[') stack.push(ch);
+    else if(ch==='}'){ if(stack[stack.length-1]==='{') stack.pop(); }
+    else if(ch===']'){ if(stack[stack.length-1]==='[') stack.pop(); }
+  }
+  if(inStr){ s = s.slice(0, s.lastIndexOf('"')).replace(/,\s*$/,''); }
+  return s + stack.reverse().map(c=> c==='{' ? '}' : ']').join('');
+}
+function repairJSON(raw){
+  const s = stripFences(raw);
+  try{ return JSON.parse(s); }catch(e){}
+  let idx = Math.max(s.lastIndexOf(','), s.lastIndexOf('}'), s.lastIndexOf(']'));
+  while(idx > 0){
+    try{ return JSON.parse(balanceBrackets(s.slice(0, idx+1))); }catch(e){}
+    idx = Math.max(s.lastIndexOf(',', idx-1), s.lastIndexOf('}', idx-1), s.lastIndexOf(']', idx-1));
+  }
+  throw new Error('Could not parse model output as JSON');
+}
+
+/* ============================================================
+   DATASET NORMALIZATION — guarantees every field render code
+   touches exists, so a partial/odd model response never throws.
+   Never fabricates: missing data stays empty, not guessed.
+   ============================================================ */
+function normalizeDataset(raw){
+  const d = raw || {};
+  const macro = {};
+  MACRO_DEFS.forEach(m=>{
+    const v = (d.macro && d.macro[m.id]) || {};
+    macro[m.id] = { cur:v.cur||'', prev:v.prev||'', cons:v.cons||'', d:v.d||'na', note:v.note||'' };
+  });
+  const bias = {};
+  ASSET_DEFS.forEach(a=>{
+    const v = (d.bias && d.bias[a.id]) || {};
+    bias[a.id] = { b:v.b||'', cf:(typeof v.cf==='number'?v.cf:null), pd:v.pd||'', br:v.br||'', nc:v.nc||'' };
+  });
+  const matrix = {};
+  ASSET_DEFS.forEach(a=>{
+    const v = (d.matrix && d.matrix[a.id]) || {};
+    matrix[a.id] = { bd:v.bd||'', brd:v.brd||'', cd:v.cd||'', b:v.b||'', cf:(typeof v.cf==='number'?v.cf:null) };
+  });
+  const pos = {};
+  POS_DEFS.forEach((p,i)=>{
+    const key = p.id + (POS_DEFS.slice(0,i).some(x=>x.id===p.id) ? '2' : ''); // guard against dup id (gold used twice)
+    const src = (d.pos && d.pos[p.id]);
+    pos[i] = { id:p.id, label:p.label, v:(src&&src.v)||'', tone:(src&&src.tone)||'none' };
+  });
+  const events = Array.isArray(d.events) ? d.events.slice(0,6).map(e=>({
+    cat:e.cat||'', t:e.t||'', h:e.h||'', w:e.w||'', aa:e.aa||'', imp:e.imp||'Low'
+  })) : [];
+  const narratives = Array.isArray(d.narratives) ? d.narratives.slice(0,6).map(n=>({
+    n:n.n||'', tone:n.tone||'neutral', s:(typeof n.s==='number'?n.s:50), aa:n.aa||''
+  })) : [];
+  const watchlist = Array.isArray(d.watchlist) ? d.watchlist.slice(0,8).map(w=>({
+    t:w.t||'', e:w.e||'', f:w.f||'', imp:w.imp||'Low', aa:w.aa||''
+  })) : [];
+  const meta = {
+    source:(d.meta&&d.meta.source)||'', session:(d.meta&&d.meta.session)||'', headline:(d.meta&&d.meta.headline)||''
+  };
+  return { meta, macro, bias, matrix, pos, events, narratives, watchlist };
+}
+
+/* ============================================================
+   EXTRACTION PROMPTS
+   Split into two calls so each comfortably fits a bounded
+   output budget — run in parallel, merged on return.
+   ============================================================ */
+const SYS_PROMPT_1 =
+`You are a market-data extraction engine for an institutional trading terminal. You receive raw, semi-structured market intelligence text. Extract ONLY information explicitly stated or unambiguously implied — never invent or estimate numbers. Identify content semantically; do not rely on exact wording or headers, and be robust to formatting variation.
+Respond with ONLY one valid JSON object — no markdown fences, no commentary. Use exactly this shape (fill every "{}" using the same fields as the fully-specified example in its group):
+{"meta":{"source":"","session":"","headline":""},"macro":{"fed":{"cur":"","prev":"","cons":"","d":"up|down|flat|na","note":""},"cpiH":{},"cpiC":{},"ppiH":{},"ppiC":{},"real":{},"y2":{},"y10":{},"dxy":{},"wti":{},"brent":{},"vix":{}},"bias":{"gold":{"b":"Bullish|Bearish|Neutral","cf":0,"pd":"","br":"","nc":""},"nifty":{},"usEq":{},"usBonds":{},"btc":{}},"matrix":{"gold":{"bd":"","brd":"","cd":"","b":"","cf":0},"nifty":{},"usEq":{},"usBonds":{},"btc":{}},"pos":{"risk":{"v":"","tone":"bullish|bearish|neutral|warning|macro"},"inflation":{},"growth":{},"liquidity":{},"fed":{},"dollar":{},"bond":{},"gold":{}}}
+Key meanings — macro: fed=Fed Funds Rate, cpiH=Headline CPI, cpiC=Core CPI, ppiH=Headline PPI, ppiC=Core PPI, real=Real Rate, y2=2Y Treasury Yield, y10=10Y Treasury Yield, dxy=DXY Dollar Index, wti=WTI Crude, brent=Brent Crude, vix=VIX. Assets (bias/matrix/pos.gold): gold=Gold, nifty=Nifty 50, usEq=US Equities, usBonds=US Bonds, btc=Bitcoin. pos keys: risk=Risk-On/Risk-Off stance; inflation/growth/liquidity/fed/dollar/bond/gold=that theme's current institutional read.
+Rules: if a value is absent from the text use "" for strings and null for cf — never guess a number. cf (confidence 0-100) may only be inferred from the strength of conviction language actually used for that asset (e.g. "strong conviction" -> 80-95; hedged language -> 35-55); if an asset isn't discussed at all, leave its fields "" and cf null. d reflects current vs previous, "na" if no comparison is possible. bd/brd = at most 3 short comma-separated phrases each. Preserve numbers' natural units/format (e.g. "5.50%", "103.4", "$78.20"). Every text field must be terse, 3-7 words. Output raw JSON only.`;
+
+const SYS_PROMPT_2 =
+`You are a market-event extraction engine for an institutional trading terminal. You receive raw, semi-structured market intelligence text. Extract ONLY events, narratives, and scheduled items explicitly present — never invent any. Identify content semantically, robust to formatting/wording variation.
+Respond with ONLY one valid JSON object — no markdown fences, no commentary. Shape:
+{"events":[{"cat":"","t":"","h":"","w":"","aa":"","imp":"High|Medium|Low"}],"narratives":[{"n":"","tone":"bullish|bearish|neutral|warning|macro","s":0,"aa":""}],"watchlist":[{"t":"","e":"","f":"","imp":"High|Medium|Low","aa":""}]}
+Field meanings: events.cat=1-2 word category (Fed, Inflation, Geopolitics, Earnings, Central Bank, Energy, Data...), .t=time as stated, .h=headline (max 12 words), .w=why it matters (max 15 words), .aa=comma-separated affected assets (max 4). narratives.n=short label (max 4 words e.g. "Fed Pivot"), .tone=its market-implied direction from the 5 categories given, .s=strength 0-100. watchlist = ONLY items explicitly upcoming/scheduled/tomorrow/next, never past events; .f=forecast/consensus figure if explicitly stated else "".
+Rules: events = most important market-moving items, ranked most-important-first, MAXIMUM 6. narratives = dominant macro/market narratives discussed, MAXIMUM 6. watchlist MAXIMUM 8, forward-looking only. s may be inferred from emphasis/repetition/certainty of language. If a section has no qualifying content, return an empty array for it — never invent items. Keep text terse. Output raw JSON only.`;
+
+/* ============================================================
+   API CALLS (Claude, in-browser — "Claude in Claude")
+   ============================================================ */
+async function callClaude(system, userText){
+  const controller = new AbortController();
+  const timer = setTimeout(()=>controller.abort(), 45000);
+  try{
+    const resp = await fetch('https://api.anthropic.com/v1/messages', {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      signal: controller.signal,
+      body: JSON.stringify({
+        model:'claude-sonnet-4-6',
+        max_tokens:1000,
+        system,
+        messages:[{role:'user', content:userText}]
+      })
+    });
+    if(!resp.ok) throw new Error('API error ' + resp.status);
+    const data = await resp.json();
+    const text = (data.content||[]).map(b=> b.type==='text' ? b.text : '').join('\n');
+    if(!text.trim()) throw new Error('Empty model response');
+    return repairJSON(text);
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+async function extractIntelligence(rawText){
+  const [r1, r2] = await Promise.allSettled([
+    callClaude(SYS_PROMPT_1, rawText),
+    callClaude(SYS_PROMPT_2, rawText),
+  ]);
+  if(r1.status==='rejected' && r2.status==='rejected'){
+    throw new Error('Parsing failed — could not extract structured data from this input.');
+  }
+  const merged = { ...(r1.status==='fulfilled'?r1.value:{}), ...(r2.status==='fulfilled'?r2.value:{}) };
+  const warnings = [];
+  if(r1.status==='rejected') warnings.push('macro / bias / positioning');
+  if(r2.status==='rejected') warnings.push('events / narratives / watchlist');
+  return { data: normalizeDataset(merged), warnings };
+}
+
+/* ============================================================
+   PERSISTENCE — remembers the last parsed dataset across
+   reloads (personal, this-terminal-only; not shared).
+   ============================================================ */
+const STORAGE_KEY = 'terminal_dataset_v1';
+async function persistDataset(ds, demo){
+  try{ await window.storage.set(STORAGE_KEY, JSON.stringify({ ds, demo, savedAt: Date.now() })); }
+  catch(e){ console.warn('persist failed', e); }
+}
+async function loadPersisted(){
+  try{
+    const res = await window.storage.get(STORAGE_KEY);
+    if(res && res.value) return JSON.parse(res.value);
+  }catch(e){ /* nothing persisted yet */ }
+  return null;
+}
+
+/* ============================================================
+   SAMPLE DATASET — clearly-labeled demo data to preview layout
+   ============================================================ */
+const SAMPLE_DATASET = normalizeDataset({
+  meta:{ source:'Sample Dataset', session:'US Session Close', headline:'Fed pivot bets firm up; gold pushes higher as the dollar softens' },
+  macro:{
+    fed:{cur:'5.50%',prev:'5.50%',cons:'5.50%',d:'flat',note:'Held at cycle high'},
+    cpiH:{cur:'3.2%',prev:'3.4%',cons:'3.3%',d:'down',note:'Third straight cooling print'},
+    cpiC:{cur:'3.6%',prev:'3.8%',cons:'3.7%',d:'down',note:'Shelter costs finally easing'},
+    ppiH:{cur:'2.3%',prev:'2.5%',cons:'2.4%',d:'down',note:'Goods deflation persists'},
+    ppiC:{cur:'2.8%',prev:'2.9%',cons:'2.9%',d:'down',note:'In line, muted pipeline pressure'},
+    real:{cur:'1.90%',prev:'2.10%',cons:'',d:'down',note:'Falling as inflation cools'},
+    y2:{cur:'4.28%',prev:'4.41%',cons:'',d:'down',note:'Pricing faster 2026 cuts'},
+    y10:{cur:'4.02%',prev:'4.11%',cons:'',d:'down',note:'Curve bull-steepening'},
+    dxy:{cur:'103.4',prev:'104.6',cons:'',d:'down',note:'Broad dollar weakness'},
+    wti:{cur:'$78.20',prev:'$79.85',cons:'',d:'down',note:'Demand concerns weigh'},
+    brent:{cur:'$82.40',prev:'$83.90',cons:'',d:'down',note:'Tracking WTI lower'},
+    vix:{cur:'14.2',prev:'15.6',cons:'',d:'down',note:'Vol compressed into close'},
+  },
+  bias:{
+    gold:{b:'Bullish',cf:82,pd:'Real yields falling, dollar soft',br:'Hawkish FOMC surprise',nc:'FOMC minutes Wednesday'},
+    nifty:{b:'Bullish',cf:64,pd:'FII inflows resume on rate-cut bets',br:'Crude spike, FX pressure',nc:'RBI policy next week'},
+    usEq:{b:'Neutral',cf:55,pd:'Soft-landing narrative intact',br:'Stretched valuations into earnings',nc:'Mega-cap earnings this week'},
+    usBonds:{b:'Bullish',cf:70,pd:'Cooling inflation supports duration',br:'Heavy refunding supply',nc:'10Y auction Thursday'},
+    btc:{b:'Neutral',cf:48,pd:'Risk appetite steady',br:'ETF flow deceleration',nc:'Options expiry Friday'},
+  },
+  matrix:{
+    gold:{bd:'Falling real yields, weak dollar, CB buying',brd:'Hawkish Fed surprise, risk-on unwind',cd:'Real rates',b:'Bullish',cf:82},
+    nifty:{bd:'FII inflows, rate-cut bets, earnings beats',brd:'Crude spike, FX pressure',cd:'Global rate path',b:'Bullish',cf:64},
+    usEq:{bd:'Soft landing, resilient earnings',brd:'Valuation stretch, sticky core inflation',cd:'Earnings season',b:'Neutral',cf:55},
+    usBonds:{bd:'Disinflation, cooling labor market',brd:'Heavy issuance, term premium',cd:'Inflation trajectory',b:'Bullish',cf:70},
+    btc:{bd:'ETF demand, risk-on flows',brd:'Profit-taking, macro deleveraging',cd:'Risk sentiment',b:'Neutral',cf:48},
+  },
+  pos:{
+    risk:{v:'Risk-On',tone:'bullish'}, inflation:{v:'Cooling',tone:'bullish'}, growth:{v:'Resilient',tone:'neutral'},
+    liquidity:{v:'Ample',tone:'bullish'}, fed:{v:'Leaning Dovish',tone:'bullish'}, dollar:{v:'Softening',tone:'bearish'},
+    bond:{v:'Yields Falling',tone:'bullish'}, gold:{v:'Accumulating',tone:'bullish'},
+  },
+  events:[
+    {cat:'Fed',t:'14:00 ET',h:'FOMC minutes show growing consensus for September cut',w:'Cements market pricing for near-term easing, pressures front-end yields',aa:'DXY, US Bonds, Gold',imp:'High'},
+    {cat:'Inflation',t:'08:30 ET',h:'Core CPI cools to 3.6% y/y, third straight decline',w:'Reinforces disinflation trend, supports duration and gold',aa:'US Bonds, Gold, US Equities',imp:'High'},
+    {cat:'Central Bank',t:'Overnight',h:'RBI holds rates, signals data-dependent stance into festive season',w:'Keeps INR carry attractive, supports Nifty flows',aa:'Nifty',imp:'Medium'},
+    {cat:'Energy',t:'Overnight',h:'OPEC+ reaffirms voluntary cuts through Q1',w:'Caps downside in crude despite demand worries',aa:'WTI, Brent',imp:'Medium'},
+    {cat:'Geopolitics',t:'Overnight',h:'Middle East shipping disruptions ease as talks progress',w:'Reduces risk premium in oil and safe-haven flows',aa:'Gold, WTI, Brent',imp:'Medium'},
+    {cat:'Earnings',t:'After Close',h:'Mega-cap tech beats on cloud revenue, guidance cautious',w:'Sets tone for index-level earnings reaction this week',aa:'US Equities',imp:'Low'},
+  ],
+  narratives:[
+    {n:'Fed Pivot',tone:'bullish',s:80,aa:'Gold, US Bonds, US Equities'},
+    {n:'Inflation Cooling',tone:'bullish',s:75,aa:'US Bonds, Gold'},
+    {n:'Dollar Weakness',tone:'bearish',s:68,aa:'Gold, Nifty, Bitcoin'},
+    {n:'Risk-On Rotation',tone:'bullish',s:60,aa:'US Equities, Bitcoin, Nifty'},
+    {n:'Oil Supply Discipline',tone:'neutral',s:45,aa:'WTI, Brent'},
+    {n:'Treasury Supply Overhang',tone:'warning',s:40,aa:'US Bonds'},
+  ],
+  watchlist:[
+    {t:'08:30 ET',e:'US PCE Price Index (Sep)',f:'2.4% y/y',imp:'High',aa:'DXY, US Bonds, Gold'},
+    {t:'10:00 ET',e:'Consumer Confidence',f:'104.5',imp:'Medium',aa:'US Equities'},
+    {t:'14:00 ET',e:'FOMC Rate Decision',f:'Hold, 5.50%',imp:'High',aa:'DXY, US Bonds, Gold, US Equities'},
+    {t:'Pre-Market IN',e:'India Industrial Production (Aug)',f:'5.8% y/y',imp:'Medium',aa:'Nifty'},
+    {t:'Overnight',e:'China Manufacturing PMI',f:'50.2',imp:'Medium',aa:'Nifty, WTI, Brent'},
+    {t:'10:30 ET',e:'EIA Crude Inventories',f:'-1.8M bbl',imp:'Low',aa:'WTI, Brent'},
+    {t:'All Day',e:'US Treasury 7Y Auction',f:'',imp:'Medium',aa:'US Bonds'},
+    {t:'After Close',e:'Mega-cap Q3 Earnings (multiple)',f:'',imp:'High',aa:'US Equities, Bitcoin'},
+  ],
+});
+</script>
+</body>
+</html>
