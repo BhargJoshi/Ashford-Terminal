@@ -408,7 +408,7 @@ button{ font-family:inherit; }
   </section>
 
   <footer class="term-footer">
-    <span>Parsed live via Claude · nothing leaves this session except the extraction call</span>
+    <span>Parsed instantly in your browser · nothing you paste ever leaves this device</span>
     <span id="footerRight">Ashford Capital — internal use</span>
   </footer>
 
@@ -456,7 +456,7 @@ let dataset = null;       // normalized dataset currently rendered, or null
 let isDemo = false;
 let isParsing = false;
 let lastUpdatedAt = null; // Date
-let lastWarnings = [];
+let lastFoundCount = null; // how many fields/sections the last parse actually found
 
 const watchlistState = { query:'', imp:'', sortKey:null, sortDir:'asc' };
 const macroTableState = { query:'', sortKey:null, sortDir:'asc' };
@@ -471,46 +471,6 @@ function esc(v){
 }
 function debounce(fn, ms){ let t; return (...a)=>{ clearTimeout(t); t=setTimeout(()=>fn(...a), ms); }; }
 function assetLabel(id){ const a = ASSET_DEFS.find(x=>x.id===id); return a? a.label : id; }
-
-/* ============================================================
-   TRUNCATED-JSON REPAIR
-   Handles the (occasional) case where a bounded-token model
-   response gets cut off mid-structure — trims back to the last
-   complete element and closes open brackets rather than failing.
-   ============================================================ */
-function stripFences(s){
-  return s.trim().replace(/^```json\s*/i,'').replace(/^```\s*/,'').replace(/```\s*$/,'').trim();
-}
-function balanceBrackets(s){
-  s = s.replace(/,\s*$/,'');
-  const stack = [];
-  let inStr = false, escNext = false;
-  for(let i=0;i<s.length;i++){
-    const ch = s[i];
-    if(inStr){
-      if(escNext){ escNext=false; }
-      else if(ch==='\\'){ escNext=true; }
-      else if(ch==='"'){ inStr=false; }
-      continue;
-    }
-    if(ch==='"'){ inStr=true; continue; }
-    if(ch==='{'||ch==='[') stack.push(ch);
-    else if(ch==='}'){ if(stack[stack.length-1]==='{') stack.pop(); }
-    else if(ch===']'){ if(stack[stack.length-1]==='[') stack.pop(); }
-  }
-  if(inStr){ s = s.slice(0, s.lastIndexOf('"')).replace(/,\s*$/,''); }
-  return s + stack.reverse().map(c=> c==='{' ? '}' : ']').join('');
-}
-function repairJSON(raw){
-  const s = stripFences(raw);
-  try{ return JSON.parse(s); }catch(e){}
-  let idx = Math.max(s.lastIndexOf(','), s.lastIndexOf('}'), s.lastIndexOf(']'));
-  while(idx > 0){
-    try{ return JSON.parse(balanceBrackets(s.slice(0, idx+1))); }catch(e){}
-    idx = Math.max(s.lastIndexOf(',', idx-1), s.lastIndexOf('}', idx-1), s.lastIndexOf(']', idx-1));
-  }
-  throw new Error('Could not parse model output as JSON');
-}
 
 /* ============================================================
    DATASET NORMALIZATION — guarantees every field render code
@@ -554,81 +514,572 @@ function normalizeDataset(raw){
 }
 
 /* ============================================================
-   EXTRACTION PROMPTS
-   Split into two calls so each comfortably fits a bounded
-   output budget — run in parallel, merged on return.
+   LOCAL EXTRACTION ENGINE
+   Pure text-in / structured-data-out pattern matching — no network
+   call, no API key, no bounded-token JSON to go wrong. Runs
+   entirely in this tab, so it works the same whether this page is
+   opened inside Claude or deployed as a standalone site, and never
+   sends pasted text anywhere. Extracts ONLY what the text actually
+   supports — every dictionary miss stays "" (rendered as a dash by
+   normalizeDataset's callers), never guessed.
    ============================================================ */
-const SYS_PROMPT_1 =
-`You are a market-data extraction engine for an institutional trading terminal. You receive raw, semi-structured market intelligence text. Extract ONLY information explicitly stated or unambiguously implied — never invent or estimate numbers. Identify content semantically; do not rely on exact wording or headers, and be robust to formatting variation.
-Respond with ONLY one valid JSON object — no markdown fences, no commentary. Use exactly this shape (fill every "{}" using the same fields as the fully-specified example in its group):
-{"meta":{"source":"","session":"","headline":""},"macro":{"fed":{"cur":"","prev":"","cons":"","d":"up|down|flat|na","note":""},"cpiH":{},"cpiC":{},"ppiH":{},"ppiC":{},"real":{},"y2":{},"y10":{},"dxy":{},"wti":{},"brent":{},"vix":{}},"bias":{"gold":{"b":"Bullish|Bearish|Neutral","cf":0,"pd":"","br":"","nc":""},"nifty":{},"usEq":{},"usBonds":{},"btc":{}},"matrix":{"gold":{"bd":"","brd":"","cd":"","b":"","cf":0},"nifty":{},"usEq":{},"usBonds":{},"btc":{}},"pos":{"risk":{"v":"","tone":"bullish|bearish|neutral|warning|macro"},"inflation":{},"growth":{},"liquidity":{},"fed":{},"dollar":{},"bond":{},"gold":{}}}
-Key meanings — macro: fed=Fed Funds Rate, cpiH=Headline CPI, cpiC=Core CPI, ppiH=Headline PPI, ppiC=Core PPI, real=Real Rate, y2=2Y Treasury Yield, y10=10Y Treasury Yield, dxy=DXY Dollar Index, wti=WTI Crude, brent=Brent Crude, vix=VIX. Assets (bias/matrix/pos.gold): gold=Gold, nifty=Nifty 50, usEq=US Equities, usBonds=US Bonds, btc=Bitcoin. pos keys: risk=Risk-On/Risk-Off stance; inflation/growth/liquidity/fed/dollar/bond/gold=that theme's current institutional read.
-Rules: if a value is absent from the text use "" for strings and null for cf — never guess a number. cf (confidence 0-100) may only be inferred from the strength of conviction language actually used for that asset (e.g. "strong conviction" -> 80-95; hedged language -> 35-55); if an asset isn't discussed at all, leave its fields "" and cf null. d reflects current vs previous, "na" if no comparison is possible. bd/brd = at most 3 short comma-separated phrases each. Preserve numbers' natural units/format (e.g. "5.50%", "103.4", "$78.20"). Every text field must be terse, 3-7 words. Output raw JSON only.`;
+const MACRO_ORDER = MACRO_DEFS.map(m=>m.id);
+const LOCAL_ASSET_IDS = ASSET_DEFS.map(a=>a.id);
 
-const SYS_PROMPT_2 =
-`You are a market-event extraction engine for an institutional trading terminal. You receive raw, semi-structured market intelligence text. Extract ONLY events, narratives, and scheduled items explicitly present — never invent any. Identify content semantically, robust to formatting/wording variation.
-Respond with ONLY one valid JSON object — no markdown fences, no commentary. Shape:
-{"events":[{"cat":"","t":"","h":"","w":"","aa":"","imp":"High|Medium|Low"}],"narratives":[{"n":"","tone":"bullish|bearish|neutral|warning|macro","s":0,"aa":""}],"watchlist":[{"t":"","e":"","f":"","imp":"High|Medium|Low","aa":""}]}
-Field meanings: events.cat=1-2 word category (Fed, Inflation, Geopolitics, Earnings, Central Bank, Energy, Data...), .t=time as stated, .h=headline (max 12 words), .w=why it matters (max 15 words), .aa=comma-separated affected assets (max 4). narratives.n=short label (max 4 words e.g. "Fed Pivot"), .tone=its market-implied direction from the 5 categories given, .s=strength 0-100. watchlist = ONLY items explicitly upcoming/scheduled/tomorrow/next, never past events; .f=forecast/consensus figure if explicitly stated else "".
-Rules: events = most important market-moving items, ranked most-important-first, MAXIMUM 6. narratives = dominant macro/market narratives discussed, MAXIMUM 6. watchlist MAXIMUM 8, forward-looking only. s may be inferred from emphasis/repetition/certainty of language. If a section has no qualifying content, return an empty array for it — never invent items. Keep text terse. Output raw JSON only.`;
+// -- text protection: keeps decimals ("3.2"), abbreviations ("U.S.",
+// "Rs.") and ellipses from being mistaken for sentence-ending
+// punctuation while we search for clause boundaries. Every window
+// function below unprotects its own return value, so callers always
+// work with normal text.
+const PUA = '\uE000';
+function protectText(text){
+  return text
+    .replace(/\.{2,}/g, m=>PUA.repeat(m.length))
+    .replace(/(\d)\.(\d)/g, '$1'+PUA+'$2')
+    .replace(/\b(Mr|Mrs|Ms|Dr|Jr|Sr|vs|etc|approx|Inc|Corp|Ltd|St|No|Rs|U\.S|U\.K|e\.g|i\.e)\./gi, m=>m.replace('.',PUA));
+}
+function unprotectText(text){ return text.split(PUA).join('.'); }
 
-/* ============================================================
-   API CALLS (Claude, in-browser — "Claude in Claude")
-   ============================================================ */
-async function callClaude(system, userText){
-  const controller = new AbortController();
-  const timer = setTimeout(()=>controller.abort(), 45000);
-  try{
-    const resp = await fetch('https://api.anthropic.com/v1/messages', {
-      method:'POST',
-      headers:{'Content-Type':'application/json'},
-      signal: controller.signal,
-      body: JSON.stringify({
-        model:'claude-sonnet-4-6',
-        max_tokens:1000,
-        system,
-        messages:[{role:'user', content:userText}]
-      })
-    });
-    if(!resp.ok) throw new Error('API error ' + resp.status);
-    const data = await resp.json();
-    const text = (data.content||[]).map(b=> b.type==='text' ? b.text : '').join('\n');
-    if(!text.trim()) throw new Error('Empty model response');
-    return repairJSON(text);
-  } finally {
-    clearTimeout(timer);
+function findKeywordOccurrences(text, regexList){
+  const hits = [];
+  for(const re of regexList){
+    const flags = re.flags.includes('g') ? re.flags : re.flags+'g';
+    const g = new RegExp(re.source, flags);
+    let m;
+    while((m = g.exec(text)) !== null){
+      hits.push({ index:m.index, length:m[0].length });
+      if(m[0].length===0) g.lastIndex++;
+    }
   }
+  hits.sort((a,b)=>a.index-b.index);
+  const out = [];
+  hits.forEach(h=>{
+    if(!out.length || h.index > out[out.length-1].index + out[out.length-1].length) out.push(h);
+  });
+  return out;
+}
+function windowAround(protectedText, start, end, back, fwd){
+  back = back||90; fwd = fwd||140;
+  let lo = Math.max(0, start-back);
+  let hi = Math.min(protectedText.length, end+fwd);
+  const seg = protectedText.slice(lo, start);
+  const lastBoundary = Math.max(seg.lastIndexOf('.'), seg.lastIndexOf('!'), seg.lastIndexOf('?'), seg.lastIndexOf('\n'), seg.lastIndexOf(';'));
+  if(lastBoundary !== -1) lo = lo + lastBoundary + 1;
+  const segF = protectedText.slice(end, hi);
+  const nextBoundary = segF.search(/[.!?\n]/);
+  if(nextBoundary !== -1) hi = end + nextBoundary + 1;
+  return unprotectText(protectedText.slice(lo, hi).trim());
+}
+function trimToWords(s, n){
+  const clean = (s||'').replace(/\s+/g,' ').trim().replace(/^[,;:\-\s]+|[,;:\-\s]+$/g,'');
+  const words = clean.split(' ');
+  if(words.length<=n) return clean;
+  return words.slice(0,n).join(' ') + '\u2026';
+}
+function trimFromOffset(s, offset, n){
+  const spacePos = s.indexOf(' ', offset);
+  const start = (spacePos===-1 || spacePos>offset+12) ? offset : spacePos+1;
+  return trimToWords(s.slice(start), n);
+}
+function dedupeShortlist(arr, max){
+  const seen = new Set(); const out = [];
+  for(const item of arr){
+    const key = item.toLowerCase();
+    if(!item || seen.has(key)) continue;
+    seen.add(key); out.push(item);
+    if(out.length>=max) break;
+  }
+  return out;
+}
+function isNegated(context, matchIndex){
+  const before = context.slice(Math.max(0, matchIndex-18), matchIndex).toLowerCase();
+  return /\b(not|no|non|never|n't|isn't|wasn't|without|despite|fails?\s+to|unable\s+to)\s+[\w\s]{0,8}$/.test(before);
+}
+// catches "yields fell" AND "falling yields" — either order — so a
+// yield move doesn't get misread as a direct statement about
+// whichever asset happens to sit nearby in the same clause.
+function isYieldModified(context, matchIndex, matchLength){
+  const before = context.slice(Math.max(0, matchIndex-16), matchIndex).toLowerCase();
+  const after = context.slice(matchIndex+matchLength, matchIndex+matchLength+26).toLowerCase();
+  return /\byields?\s+(?:\w+\s+){0,2}$/.test(before) || /^\s+(?:real\s+)?(?:treasury\s+)?yields?\b/.test(after);
 }
 
-async function extractIntelligence(rawText, previousDataset){
-  const [r1, r2] = await Promise.allSettled([
-    callClaude(SYS_PROMPT_1, rawText),
-    callClaude(SYS_PROMPT_2, rawText),
-  ]);
-  if(r1.status==='rejected' && r2.status==='rejected'){
-    throw new Error('Parsing failed — could not extract structured data from this input.');
+function extractNumberTokens(str){
+  const re = /-?\$?\d[\d,]*(?:\.\d+)?\s?(?:%|bps|bp)?/g;
+  const all = [...str.matchAll(re)].map(m=>({text:m[0].trim(), index:m.index, end:m.index+m[0].length})).filter(t=>/\d/.test(t.text));
+  return all.filter(t=>{
+    if(/%/.test(t.text)) return true; // a % reading is never just a duration label
+    const after = str.slice(t.end, t.end+8);
+    if(/^-\s?year\b/i.test(after)) return false;             // "10-year", "2-year"
+    if(/^Y\b/.test(str.slice(t.end,t.end+1))) return false;  // "10Y" shorthand
+    return true;
+  });
+}
+function classifyNumbers(context, numberTokens){
+  let cur='', prev='', cons='';
+  const lower = context.toLowerCase();
+  const assigned = new Set();
+  numberTokens.forEach((tok,i)=>{
+    const before = lower.slice(Math.max(0, tok.index-32), tok.index);
+    if(!cons && /consensus|expected|estimate|forecast|economists|survey|projected/.test(before)){ cons=tok.text; assigned.add(i); }
+  });
+  numberTokens.forEach((tok,i)=>{
+    if(assigned.has(i)) return;
+    const before = lower.slice(Math.max(0, tok.index-36), tok.index);
+    if(!prev && /\bfrom\b|\bprior\b|\bprevious\b|\blast month\b|\blast reading\b|\bversus\b|\bvs\.?\b|\bcompared (?:to|with)\b|\bpreceding\b|\bdown from\b|\bup from\b/.test(before)){ prev=tok.text; assigned.add(i); }
+  });
+  for(let i=0;i<numberTokens.length;i++){
+    if(!assigned.has(i)){ cur = numberTokens[i].text; assigned.add(i); break; }
   }
-  // Normalize each half independently — both r1.value/r2.value are always raw,
-  // freshly-fetched shapes, so normalizing them separately (rather than after
-  // merging with an already-normalized `previousDataset`) avoids ever feeding
-  // normalized shape back through raw-shape parsing (e.g. pos array vs object).
-  const n1 = r1.status==='fulfilled' ? normalizeDataset(r1.value) : null;
-  const n2 = r2.status==='fulfilled' ? normalizeDataset(r2.value) : null;
+  return {cur, prev, cons};
+}
+
+const UP_WORDS   = /\b(ros[ei]|rising|risen|higher|climb(?:ed|ing)?|jump(?:ed|ing)?|surg(?:e|ed|ing)|increas(?:e|ed|ing)|gain(?:ed|s)?|accelerat(?:e|ed|ing)|advanc(?:e|ed|ing)|spik(?:e|ed|ing)|beats?|topped|stronger.than.expected|higher.than.expected)\b/i;
+const DOWN_WORDS = /\b(fell|falling|fallen|lower|declin(?:e|ed|ing)|decreas(?:e|ed|ing)|dropp?(?:ed|ing)?|eas(?:e|ed|ing)|cool(?:ed|ing)?|slow(?:ed|ing)?|slipp?(?:ed|ing)?|retreat(?:ed|ing)?|soften(?:ed|ing)?|weaken(?:ed|ing)?|miss(?:ed)?|below.forecast|cooler.than.expected|lower.than.expected)\b/i;
+const FLAT_WORDS = /\b(unchanged|steady|held|holds?|holding|flat|in line|matched|as expected|no change|maintained|paused|stable)\b/i;
+function detectTrend(context, cur, prev){
+  const curN = parseFloat((cur||'').replace(/[^0-9.\-]/g,''));
+  const prevN = parseFloat((prev||'').replace(/[^0-9.\-]/g,''));
+  if(!isNaN(curN) && !isNaN(prevN) && prev){
+    if(curN>prevN) return 'up';
+    if(curN<prevN) return 'down';
+    return 'flat';
+  }
+  if(FLAT_WORDS.test(context)) return 'flat';
+  if(UP_WORDS.test(context)) return 'up';
+  if(DOWN_WORDS.test(context)) return 'down';
+  return 'na';
+}
+
+const MACRO_PATTERNS = {
+  cpiC:  [/\bcore\s+cpi\b/i, /\bcore\s+consumer\s+price\s+index\b/i, /\bcore\s+inflation\b/i],
+  cpiH:  [/(?<!core\s)\bcpi\b/i, /\bheadline\s+cpi\b/i, /\bconsumer\s+price\s+index\b/i, /\bheadline\s+inflation\b/i],
+  ppiC:  [/\bcore\s+ppi\b/i, /\bcore\s+producer\s+price\b/i],
+  ppiH:  [/(?<!core\s)\bppi\b/i, /\bproducer\s+price\s+index\b/i],
+  fed:   [/\bfed\s+funds\s+rate\b/i, /\bfederal\s+funds\s+rate\b/i, /\bpolicy\s+rate\b/i, /\bbenchmark\s+(?:interest\s+)?rate\b/i, /\bfed\s+rate\b/i, /\bfed\s+(?:holds?|held|keeps?|kept|maintains?|left|leaves?|cuts?|hikes?|raises?|raised)\s+(?:interest\s+)?rates?\b/i],
+  real:  [/\breal\s+(?:interest\s+)?rate\b/i, /\breal\s+yield/i],
+  y2:    [/\b2[\s-]?year\s+(?:treasury\s+)?yield/i, /\btwo[\s-]year\s+(?:treasury\s+)?yield/i, /\b2y\s+yield/i],
+  y10:   [/\b10[\s-]?year\s+(?:treasury\s+)?yield/i, /\bten[\s-]year\s+(?:treasury\s+)?yield/i, /\b10y\s+yield/i],
+  dxy:   [/\bdxy\b/i, /\bdollar\s+index\b/i, /\bu\.?s\.?\s+dollar\s+index\b/i],
+  wti:   [/\bwti\b/i, /\bwest\s+texas\s+intermediate\b/i],
+  brent: [/\bbrent\b/i],
+  vix:   [/\bvix\b/i, /\bvolatility\s+index\b/i, /\bfear\s+index\b/i],
+};
+function extractMacro(protectedText){
+  // flat, position-sorted list of every indicator hit, so a window can be
+  // clipped at the nearest *different-indicator* neighbor and never borrow
+  // a number that actually belongs to the indicator next door (e.g. "the
+  // 10-year yield fell to 4.02%, while the 2-year yield slid to 4.28%").
+  const allHits = [];
+  MACRO_ORDER.forEach(id=>{
+    findKeywordOccurrences(protectedText, MACRO_PATTERNS[id]).forEach(h=>allHits.push({...h, id}));
+  });
+  allHits.sort((a,b)=>a.index-b.index);
+  const out = {};
+  MACRO_ORDER.forEach(id=>{
+    let best=null, bestScore=-1;
+    allHits.forEach((h,i)=>{
+      if(h.id!==id) return;
+      const nextOther = allHits.slice(i+1).find(x=>x.id!==id);
+      // number search is forward-biased: "KEYWORD ... NUMBER" is the
+      // dominant financial-prose pattern, and searching far backward risks
+      // grabbing a neighboring indicator's number instead of this one's.
+      const fwdLim = nextOther ? Math.max(20, Math.min(70, nextOther.index-(h.index+h.length))) : 70;
+      const narrowCtx = windowAround(protectedText, h.index, h.index+h.length, 10, fwdLim);
+      const wideCtx = windowAround(protectedText, h.index, h.index+h.length, 90, 140);
+      const nums = extractNumberTokens(narrowCtx);
+      const {cur,prev,cons} = classifyNumbers(narrowCtx, nums);
+      const score = (cur?2:0)+(prev?1:0)+(cons?1:0);
+      if(score>bestScore){ bestScore=score; best={wideCtx,cur,prev,cons}; }
+    });
+    out[id] = (best && best.cur)
+      ? { cur:best.cur, prev:best.prev, cons:best.cons, d:detectTrend(best.wideCtx,best.cur,best.prev), note:trimToWords(best.wideCtx,9) }
+      : { cur:'', prev:'', cons:'', d:'na', note:'' };
+  });
+  return out;
+}
+
+const ASSET_ALIASES = {
+  gold:    [/\bgold\b/i, /\bxau\s?\/?\s?usd\b/i, /\bbullion\b/i],
+  nifty:   [/\bnifty\s?50\b/i, /\bnifty\b/i, /\bsensex\b/i, /\bindian\s+equit(?:y|ies)\b/i],
+  usEq:    [/\bs&p\s?500\b/i, /\bs&p\b/i, /\bnasdaq\b/i, /\bdow\s+jones\b/i, /\bdow\b/i, /\bus\s+equit(?:y|ies)\b/i, /\bus\s+stocks?\b/i, /\bwall\s+street\b/i],
+  usBonds: [/\btreasur(?:y|ies)\b/i, /\bus\s+bonds?\b/i, /\bbond\s+market\b/i, /\bt-notes?\b/i, /\bt-bonds?\b/i],
+  btc:     [/\bbitcoin\b/i, /\bbtc\b/i, /\bcrypto(?:currency)?\b/i],
+};
+const BULLISH_WORDS = /\b(bullish\s+on|turn(?:ed|ing)?\s+bullish|remains?\s+bullish|rall(?:y|ied|ying)|ros[ei]|rising|gain(?:s|ed)?|higher|surg(?:e|ed|ing)|jump(?:ed|ing)?|strengthen(?:ed|ing)?|outperform(?:ed|ing)?|buying|inflows?|support(?:ed|ive)?|upside|breakout|accumulat(?:e|ed|ing|ion)|tailwind|boost(?:ed)?|buoyed(?:\s+by)?|climb(?:ed|ing)?|advanc(?:e|ed|ing)|record\s+high|fresh\s+(?:\w+[\s-])?highs?|multi.week\s+highs?|multi.month\s+highs?|upgrad(?:e|ed)|beats?|strong\s+demand|safe.haven\s+demand|up(?!\s+to\b|\s+next\b))\b/;
+const BULLISH_RE = new RegExp(BULLISH_WORDS.source, 'gi');
+const BEARISH_WORDS = /\b(bearish\s+on|turn(?:ed|ing)?\s+bearish|remains?\s+bearish|sell.?off|sold\s+off|selling|fell|falling|declin(?:e|ed|ing)|dropp?(?:ed|ing)?|weak(?:ness)?|pressure[d]?|downside|breakdown|outflows?|losses|slid(?:e|ing)?|plung(?:e|ed|ing)?|retreat(?:ed|ing)?|headwind|weigh(?:ed|ing)?\s+down|downgrad(?:e|ed)|misses?|missed|profit.taking|correction|under\s+pressure|down(?!\s+the\b|\s+to\b))\b/;
+const BEARISH_RE = new RegExp(BEARISH_WORDS.source, 'gi');
+const STRONG_WORDS = /\b(strongly|sharply|significantly|substantially|dramatically|decisively|firmly|clearly|extremely|aggressively|soaring|plunging|collapsing|fresh\s+highs?|multi.week\s+highs?|multi.month\s+highs?)\b/i;
+const HEDGE_WORDS  = /\b(could|may|might|possibly|potentially|somewhat|slightly|modestly|marginally|tentatively|cautiously|appears?\s+to|seems?\s+to|likely)\b/i;
+const FUTURE_WORDS = /\b(ahead of|due(?:\s+\w+){0,2}\s+(?:wednesday|thursday|friday|monday|tuesday|this week|next week|tomorrow)|scheduled|upcoming|will\s+(?:release|report|announce)|set\s+to|awaiting|awaits?|next week|tomorrow|keep an eye on|watch for|coming up|on tap|monday|tuesday|wednesday|thursday|friday|saturday|sunday)\b/i;
+const CONNECTOR_RE = /\b(?:as|amid|due to|driven by|on the back of|following|after|because of|thanks to|owing to|buoyed by|weighed down by)\s+([a-z0-9][^.,;]{4,70})/i;
+const RISK_PHRASE_RE = /\b(?:main\s+|key\s+|biggest\s+)?risks?\s+to\s+(?:the\s+)?(?:bullish|bearish)\s+(?:\w+\s+){0,2}?(?:thesis|view|case|outlook|bias)\s+(?:remains?|is|would\s+be|include[s]?)\s*:?\s*([^.]{4,80})/i;
+
+function extractDriverPhrase(ctx){
+  // re-protect: ctx already had its decimals restored by windowAround, but
+  // CONNECTOR_RE's [^.,;] class would otherwise stop dead at "4.02%"
+  const m = CONNECTOR_RE.exec(protectText(ctx));
+  if(m) return trimToWords(unprotectText(m[1]), 8);
+  return trimToWords(ctx, 8);
+}
+function computeLocalSentiment(ctx, isBondAsset){
+  let localBull=0, localBear=0, m;
+  if(isBondAsset){
+    const upG = new RegExp(UP_WORDS.source,'gi');
+    while((m=upG.exec(ctx))){ if(isYieldModified(ctx,m.index,m[0].length) && !isNegated(ctx,m.index)) localBear++; }
+    const downG = new RegExp(DOWN_WORDS.source,'gi');
+    while((m=downG.exec(ctx))){ if(isYieldModified(ctx,m.index,m[0].length) && !isNegated(ctx,m.index)) localBull++; }
+  }
+  BULLISH_RE.lastIndex=0;
+  while((m=BULLISH_RE.exec(ctx))){ if(!isYieldModified(ctx,m.index,m[0].length) && !isNegated(ctx,m.index)) localBull++; }
+  BEARISH_RE.lastIndex=0;
+  while((m=BEARISH_RE.exec(ctx))){ if(!isYieldModified(ctx,m.index,m[0].length) && !isNegated(ctx,m.index)) localBear++; }
+  return {localBull, localBear};
+}
+function scanAssetSignal(protectedText, aliasRes, isBondAsset){
+  const hits = findKeywordOccurrences(protectedText, aliasRes);
+  if(!hits.length) return null;
+  let bullWeight=0, bearWeight=0, strongCount=0, hedgeCount=0;
+  const bullPhrases=[], bearPhrases=[], riskPhrases=[];
+  let bestDriver='', bestDriverWeight=-1, nextCatalyst='';
+  hits.forEach(h=>{
+    const ctx = windowAround(protectedText, h.index, h.index+h.length, 70, 130);
+    const {localBull, localBear} = computeLocalSentiment(ctx, isBondAsset);
+    if(STRONG_WORDS.test(ctx)) strongCount++;
+    if(HEDGE_WORDS.test(ctx)) hedgeCount++;
+    const riskM = RISK_PHRASE_RE.exec(protectText(ctx));
+    if(riskM) riskPhrases.push(trimToWords(unprotectText(riskM[1]),10));
+    if(localBull>localBear && localBull>0){
+      bullWeight+=localBull;
+      const phrase = extractDriverPhrase(ctx);
+      bullPhrases.push(phrase);
+      if(localBull>bestDriverWeight){ bestDriverWeight=localBull; bestDriver=phrase; }
+    } else if(localBear>localBull && localBear>0){
+      bearWeight+=localBear;
+      const phrase = extractDriverPhrase(ctx);
+      bearPhrases.push(phrase);
+      if(localBear>bestDriverWeight){ bestDriverWeight=localBear; bestDriver=phrase; }
+    }
+    const futureMatch = FUTURE_WORDS.exec(ctx);
+    if(futureMatch && !nextCatalyst){
+      nextCatalyst = trimFromOffset(ctx, Math.max(0,futureMatch.index-30), 10);
+    }
+  });
+  const total = bullWeight+bearWeight;
+  let bias='Neutral', cf=50;
+  if(total>0){
+    if(bullWeight > bearWeight*1.15) bias='Bullish';
+    else if(bearWeight > bullWeight*1.15) bias='Bearish';
+    const margin = Math.max(bullWeight,bearWeight)/total;
+    cf = Math.max(30, Math.min(92, Math.round(45 + margin*40 + strongCount*4 - hedgeCount*4)));
+  }
+  const bdList = dedupeShortlist(bullPhrases,3);
+  const brdList = dedupeShortlist(bearPhrases,3);
+  const bd = bdList.join(', '), brd = brdList.join(', ');
+  const cd = bestDriver || bdList[0] || brdList[0] || '';
+  let pd, br;
+  if(bias==='Bearish'){ pd = brdList[0]||cd||''; br = bdList[0]||riskPhrases[0]||''; }
+  else { pd = bdList[0]||cd||''; br = riskPhrases[0]||brdList[0]||''; }
+  return { bias, cf, bd, brd, cd, pd, br, nc:nextCatalyst };
+}
+function extractAssets(protectedText){
+  const bias={}, matrix={};
+  LOCAL_ASSET_IDS.forEach(id=>{
+    const sig = scanAssetSignal(protectedText, ASSET_ALIASES[id], id==='usBonds');
+    if(!sig){
+      bias[id] = {b:'',cf:null,pd:'',br:'',nc:''};
+      matrix[id] = {bd:'',brd:'',cd:'',b:'',cf:null};
+    } else {
+      bias[id] = { b:sig.bias, cf:sig.cf, pd:sig.pd||'', br:sig.br||'', nc:sig.nc||'' };
+      matrix[id] = { bd:sig.bd||'', brd:sig.brd||'', cd:sig.cd||'', b:sig.bias, cf:sig.cf };
+    }
+  });
+  return {bias, matrix};
+}
+
+const THEME_CONFIG = {
+  risk:      { anchor:[/\brisk[\s-]?on\b/i,/\brisk[\s-]?off\b/i,/\brisk\s+appetite\b/i,/\brisk\s+sentiment\b/i,/\brisk\s+aversion\b/i],
+               bull:[/\brisk[\s-]?on\b/i,/\brisk\s+appetite\s+(?:improving|increasing|returning|higher)\b/i],
+               bear:[/\brisk[\s-]?off\b/i,/\brisk\s+aversion\b/i,/\bflight\s+to\s+(?:safety|quality)\b/i],
+               labelBull:'Risk-On', labelBear:'Risk-Off' },
+  inflation: { anchor:[/\binflation\b/i],
+               bull:[/\bcool(?:ed|ing)?\b/i,/\bmoderat(?:e|ed|ing)\b/i,/\bdisinflation\b/i,/\bsofter\b/i,/\bdeclin(?:e|ed|ing)\b/i],
+               bear:[/\bstick(?:y|iness)\b/i,/\bpersist(?:ent|ing|s)?\b/i,/\belevated\b/i,/\bre-?accelerat\w*\b/i,/\bhot\b/i],
+               labelBull:'Cooling', labelBear:'Accelerating' },
+  growth:    { anchor:[/\b(?:economic\s+)?growth\b/i,/\bgdp\b/i],
+               bull:[/\bresilient\b/i,/\brobust\b/i,/\bsolid\b/i,/\bstrong\b/i],
+               bear:[/\bslow(?:ing|ed)?\b/i,/\bweak(?:ening)?\b/i,/\bcontract(?:ing|ed)?\b/i,/\brecession\b/i],
+               labelBull:'Resilient', labelBear:'Slowing' },
+  liquidity: { anchor:[/\bliquidity\b/i],
+               bull:[/\bample\b/i,/\bimprov(?:e|ed|ing)\b/i,/\babundant\b/i],
+               bear:[/\btighten(?:ing|ed)?\b/i,/\bdrain(?:ing|ed)?\b/i,/\bscarce\b/i],
+               labelBull:'Ample', labelBear:'Tightening' },
+  fed:       { anchor:[/\bfed\b/i,/\bfomc\b/i,/\bfederal\s+reserve\b/i,/\bpowell\b/i],
+               bull:[/\bdovish\b/i,/\bcut(?:ting)?\s+rates?\b/i,/\bpivot\b/i,/\beasing\b/i],
+               bear:[/\bhawkish\b/i,/\bhik(?:e|ing)\s+rates?\b/i,/\bhigher[\s-]for[\s-]longer\b/i],
+               labelBull:'Leaning Dovish', labelBear:'Leaning Hawkish' },
+};
+function scanTheme(protectedText, cfg){
+  const hits = findKeywordOccurrences(protectedText, cfg.anchor);
+  if(!hits.length) return null;
+  let bullN=0, bearN=0;
+  hits.forEach(h=>{
+    const ctx = windowAround(protectedText, h.index, h.index+h.length, 60, 100);
+    cfg.bull.forEach(re=>{ if(re.test(ctx)) bullN++; });
+    cfg.bear.forEach(re=>{ if(re.test(ctx)) bearN++; });
+  });
+  if(bullN===0 && bearN===0) return null;
+  const tone = bullN>bearN?'bullish':bearN>bullN?'bearish':'neutral';
+  const v = bullN>bearN?cfg.labelBull:bearN>bullN?cfg.labelBear:'Mixed Signals';
+  return {v, tone};
+}
+function extractPositioning(protectedText, macro, assets){
+  const pos = {};
+  ['risk','inflation','growth','liquidity','fed'].forEach(id=>{
+    const r = scanTheme(protectedText, THEME_CONFIG[id]);
+    pos[id] = r ? r : {v:'',tone:'none'};
+  });
+  if(!pos.inflation.v && macro.cpiH && macro.cpiH.d && macro.cpiH.d!=='na'){
+    pos.inflation = macro.cpiH.d==='down' ? {v:'Cooling',tone:'bullish'} : macro.cpiH.d==='up' ? {v:'Accelerating',tone:'bearish'} : {v:'Steady',tone:'neutral'};
+  }
+  // dollar/bond/gold themes derive from the matching macro/asset signal
+  // first, so this panel can never contradict the DXY tile or the
+  // gold/bond bias strip sitting right next to it.
+  if(macro.dxy && macro.dxy.d && macro.dxy.d!=='na'){
+    pos.dollar = macro.dxy.d==='down' ? {v:'Softening',tone:'bullish'} : macro.dxy.d==='up' ? {v:'Strengthening',tone:'bearish'} : {v:'Steady',tone:'neutral'};
+  } else {
+    const r = scanTheme(protectedText, { anchor:[/\bdollar\b/i,/\bdxy\b/i,/\bgreenback\b/i], bull:[/\bsoft(?:en(?:ing|ed))?\b/i,/\bweak(?:ening|ness)?\b/i,/\blower\b/i], bear:[/\bstrength(?:en(?:ing|ed))?\b/i,/\brall(?:y|ying|ied)\b/i,/\bfirm(?:er|ing)?\b/i], labelBull:'Softening', labelBear:'Strengthening' });
+    pos.dollar = r ? r : {v:'',tone:'none'};
+  }
+  if(assets.bias.usBonds && assets.bias.usBonds.b){
+    const b = assets.bias.usBonds.b;
+    pos.bond = b==='Bullish' ? {v:'Yields Falling',tone:'bullish'} : b==='Bearish' ? {v:'Yields Rising',tone:'bearish'} : {v:'Range-Bound',tone:'neutral'};
+  } else if(macro.y10 && macro.y10.d && macro.y10.d!=='na'){
+    pos.bond = macro.y10.d==='down' ? {v:'Yields Falling',tone:'bullish'} : macro.y10.d==='up' ? {v:'Yields Rising',tone:'bearish'} : {v:'Steady',tone:'neutral'};
+  } else {
+    pos.bond = {v:'',tone:'none'};
+  }
+  if(assets.bias.gold && assets.bias.gold.b){
+    const b = assets.bias.gold.b;
+    pos.gold = b==='Bullish' ? {v:'Accumulating',tone:'bullish'} : b==='Bearish' ? {v:'Under Pressure',tone:'bearish'} : {v:'Consolidating',tone:'neutral'};
+  } else {
+    pos.gold = {v:'',tone:'none'};
+  }
+  return pos;
+}
+
+const NARRATIVE_DICT = [
+  { n:'Fed Pivot', res:[/\bfed\s+pivot\b/i,/\bdovish\s+pivot\b/i,/\bpivot(?:ing)?\s+to\s+(?:rate\s+)?cuts\b/i,/\bpricing\s+in\s+(?:a\s+)?(?:rate\s+)?cuts?\b/i], tone:'bullish' },
+  { n:'Hawkish Fed', res:[/\bhawkish\s+f(?:ed|omc)\b/i,/\bhigher[\s-]for[\s-]longer\b/i,/\bhawkish\s+(?:hold|surprise)\b/i], tone:'bearish' },
+  { n:'Inflation Cooling', res:[/\binflation\s+cooling\b/i,/\bdisinflation\b/i,/\bcooling\s+inflation\b/i,/\beasing\s+inflation\b/i,/\bsofter\s+inflation\b/i], tone:'bullish' },
+  { n:'Sticky Inflation', res:[/\bsticky\s+inflation\b/i,/\binflation\s+(?:remains|persists)\b/i,/\bstubborn\s+inflation\b/i], tone:'bearish' },
+  { n:'Risk-On Rotation', res:[/\brisk[\s-]?on\s+(?:rotation|rally)\b/i,/\brisk\s+appetite\s+(?:improving|increasing|returning)\b/i], tone:'bullish' },
+  { n:'Risk-Off Mood', res:[/\brisk[\s-]?off\b/i,/\brisk\s+aversion\b/i,/\bflight\s+to\s+(?:safety|quality)\b/i], tone:'bearish' },
+  { n:'Dollar Weakness', res:[/\bdollar\s+weak(?:ness)?\b/i,/\bsoft(?:er|ening)\s+dollar\b/i,/\bweaker\s+dollar\b/i], tone:'bullish' },
+  { n:'Dollar Strength', res:[/\bdollar\s+strength\b/i,/\bstronger\s+dollar\b/i,/\bdollar\s+rall(?:y|ying|ied)\b/i], tone:'bearish' },
+  { n:'Soft Landing', res:[/\bsoft\s+landing\b/i], tone:'bullish' },
+  { n:'Hard Landing / Recession Risk', res:[/\bhard\s+landing\b/i,/\brecession\s+(?:risk|fears?|concerns?)\b/i], tone:'bearish' },
+  { n:'Growth Slowing', res:[/\bgrowth\s+slow(?:ing|s)?\b/i,/\beconomic\s+slowdown\b/i,/\bdecelerat(?:e|ing)\s+growth\b/i], tone:'bearish' },
+  { n:'Liquidity Improving', res:[/\bliquidity\s+improv(?:ing|es|ed)\b/i,/\bample\s+liquidity\b/i], tone:'bullish' },
+  { n:'Liquidity Tightening', res:[/\bliquidity\s+tighten(?:ing|s)?\b/i,/\bliquidity\s+crunch\b/i], tone:'bearish' },
+  { n:'Yield Curve Steepening', res:[/\bcurve\s+steepen(?:ing|s)?\b/i,/\bbull\s+steepening\b/i], tone:'neutral' },
+  { n:'Yield Curve Inversion', res:[/\bcurve\s+invert(?:ed|ing|s)?\b/i,/\binverted\s+yield\s+curve\b/i], tone:'warning' },
+  { n:'Earnings Strength', res:[/\bearnings\s+beat\b/i,/\bstrong\s+earnings\b/i,/\bearnings\s+resilience\b/i], tone:'bullish' },
+  { n:'Geopolitical Risk', res:[/\bgeopolitical\s+(?:risk|tension|escalation)\b/i,/\bconflict\s+escalat\w*\b/i], tone:'warning' },
+  { n:'Central Bank Buying', res:[/\bcentral\s+bank\s+buying\b/i,/\bcb\s+buying\b/i,/\bofficial\s+sector\s+demand\b/i], tone:'bullish' },
+  { n:'Supply Discipline', res:[/\bsupply\s+discipline\b/i,/\bproduction\s+cuts?\b/i,/\bvoluntary\s+cuts?\b/i], tone:'neutral' },
+];
+function extractNarratives(protectedText){
+  const found = [];
+  NARRATIVE_DICT.forEach(entry=>{
+    const hits = findKeywordOccurrences(protectedText, entry.res);
+    if(!hits.length) return;
+    let strongBump = 0;
+    const assetSet = new Set();
+    hits.forEach(h=>{
+      const ctx = windowAround(protectedText, h.index, h.index+h.length, 180, 220);
+      if(STRONG_WORDS.test(ctx)) strongBump++;
+      LOCAL_ASSET_IDS.forEach(id=>{ if(findKeywordOccurrences(ctx, ASSET_ALIASES[id]).length) assetSet.add(assetLabel(id)); });
+    });
+    const s = Math.max(30, Math.min(95, 40 + hits.length*15 + strongBump*8));
+    found.push({ n:entry.n, tone:entry.tone, s, aa:[...assetSet].slice(0,4).join(', ') });
+  });
+  found.sort((a,b)=>b.s-a.s);
+  return found.slice(0,6);
+}
+
+const EVENT_CATEGORIES = [
+  { cat:'Fed', res:[/\bfed\b/i,/\bfomc\b/i,/\bfederal\s+reserve\b/i,/\bpowell\b/i,/\brate\s+(?:decision|hike|cut)\b/i] },
+  { cat:'Central Bank', res:[/\brbi\b/i,/\becb\b/i,/\bboe\b/i,/\bboj\b/i,/\bpboc\b/i,/\breserve\s+bank\b/i,/\bcentral\s+bank\b/i] },
+  { cat:'Inflation', res:[/\bcpi\b/i,/\bppi\b/i,/\binflation\b/i,/\bpce\b/i] },
+  { cat:'Employment', res:[/\bpayrolls?\b/i,/\bnonfarm\b/i,/\bunemployment\b/i,/\bjobless\s+claims\b/i,/\bjobs\s+report\b/i,/\bwage\s+growth\b/i,/\bhourly\s+earnings\b/i,/\blabor\s+market\b/i] },
+  { cat:'Rates', res:[/\byields?\b/i,/\btreasur(?:y|ies)\b/i,/\bbond\s+market\b/i] },
+  { cat:'Geopolitics', res:[/\bwar\b/i,/\bconflict\b/i,/\bgeopolitical\b/i,/\bsanctions\b/i,/\bmilitary\b/i,/\bceasefire\b/i,/\btension\b/i,/\bmiddle\s+east\b/i] },
+  { cat:'Energy', res:[/\bopec\b/i,/\bcrude\b/i,/\boil\b/i,/\bpipeline\b/i,/\brefinery\b/i] },
+  { cat:'Earnings', res:[/\bearnings\b/i,/\bquarterly\s+results\b/i,/\brevenue\b/i,/\bguidance\b/i,/\beps\b/i] },
+  { cat:'Trade', res:[/\btariff\b/i,/\btrade\s+deal\b/i,/\btrade\s+war\b/i] },
+  { cat:'Data', res:[/\bgdp\b/i,/\bretail\s+sales\b/i,/\bpmi\b/i,/\bism\b/i,/\bhousing\s+starts\b/i,/\bbuilding\s+permits\b/i,/\bconsumer\s+confidence\b/i,/\bindustrial\s+production\b/i] },
+];
+const TIME_RE = /\b\d{1,2}:\d{2}\s?(?:AM|PM|am|pm)?(?:\s?(?:ET|EST|EDT|GMT|UTC|IST))?\b/;
+const RELATIVE_TIME = /\b(overnight|pre-market|after[\s-]close|after[\s-]hours|before the bell|at the open|at the close|this morning|this afternoon|tonight|today|yesterday|tomorrow|all day)\b/i;
+const HIGH_IMPORTANCE = /\b(critical|crucial|key|major|significant|closely watched|pivotal|decisive|historic|landmark)\b/i;
+const PAST_TENSE = /\b(released|reported|showed|came in|printed|posted|rose to|fell to|held at|announced|said|confirmed|slipped|extended|rallied|climbed|fell|eased|cooled)\b/i;
+
+function categorize(sentence){
+  for(const c of EVENT_CATEGORIES){ if(c.res.some(re=>re.test(sentence))) return c.cat; }
+  return '';
+}
+function findTime(sentence){
+  const m = TIME_RE.exec(sentence);
+  if(m) return m[0];
+  const r = RELATIVE_TIME.exec(sentence);
+  if(r) return r[0].replace(/^\w/,c=>c.toUpperCase());
+  return '';
+}
+function findAssetsIn(sentence){
+  const set = new Set();
+  LOCAL_ASSET_IDS.forEach(id=>{ if(findKeywordOccurrences(sentence, ASSET_ALIASES[id]).length) set.add(assetLabel(id)); });
+  if(/\bdxy\b|\bdollar\b/i.test(sentence)) set.add('DXY');
+  if(/\bwti\b/i.test(sentence)) set.add('WTI');
+  if(/\bbrent\b/i.test(sentence)) set.add('Brent');
+  return [...set].slice(0,4).join(', ');
+}
+function scoreSentence(sentence){
+  let score=0;
+  Object.values(MACRO_PATTERNS).forEach(res=>{ if(res.some(re=>re.test(sentence))) score++; });
+  LOCAL_ASSET_IDS.forEach(id=>{ if(findKeywordOccurrences(sentence, ASSET_ALIASES[id]).length) score++; });
+  if(EVENT_CATEGORIES.some(c=>c.res.some(re=>re.test(sentence)))) score+=2;
+  if(BULLISH_RE.test(sentence) || BEARISH_RE.test(sentence)) score++;
+  if(TIME_RE.test(sentence) || RELATIVE_TIME.test(sentence)) score++;
+  return score;
+}
+function splitSentences(protectedText){
+  const lines = protectedText.split(/\n+/);
+  const sentences = [];
+  lines.forEach(line=>{
+    const stripped = line.replace(/^\s*[-*•]\s*|^\s*\d+[.)]\s*/,'').trim();
+    if(!stripped) return;
+    const parts = stripped.split(/(?<=[.!?])\s+/);
+    parts.forEach(p=>{
+      const s = unprotectText(p).trim();
+      if(s.length>3) sentences.push(s);
+    });
+  });
+  return sentences;
+}
+function extractEventsAndWatchlist(sentences){
+  const scored = sentences.map(s=>({ s, score:scoreSentence(s) })).filter(x=>x.score>=2);
+  scored.sort((a,b)=>b.score-a.score);
+  const events=[], watchlist=[];
+  const seenHeadlines = new Set();
+  for(const {s} of scored){
+    const key = s.toLowerCase().slice(0,40);
+    if(seenHeadlines.has(key)) continue;
+    seenHeadlines.add(key);
+    const isFuture = FUTURE_WORDS.test(s) && !PAST_TENSE.test(s);
+    const cat = categorize(s);
+    const t = findTime(s);
+    const aa = findAssetsIn(s);
+    // strip clock-times before scanning for a forecast number, so "2:00 PM"
+    // or an index name like "S&P 500" never gets mistaken for a data figure
+    const sForNums = s.replace(TIME_RE, ' ');
+    const nums = extractNumberTokens(sForNums);
+    const {cons} = classifyNumbers(sForNums, nums);
+    if(isFuture){
+      if(watchlist.length>=8) continue;
+      watchlist.push({ t, e:trimToWords(s,12), f:cons||'', imp: HIGH_IMPORTANCE.test(s)||cat==='Fed'||cat==='Inflation' ? 'High' : (aa? 'Medium':'Low'), aa });
+    } else {
+      if(events.length>=6) continue;
+      let why = '';
+      const connM = /\b(?:which|since|because)\s+([^.]{6,90})/i.exec(protectText(s));
+      if(connM) why = trimToWords(unprotectText(connM[1]),14);
+      events.push({ cat: cat||'General', t, h: trimToWords(s,12), w:why, aa, imp: HIGH_IMPORTANCE.test(s)||cat==='Fed'||cat==='Inflation' ? 'High' : (aa && aa.split(',').length>=2 ? 'Medium':'Low') });
+    }
+  }
+  return { events, watchlist };
+}
+
+const KNOWN_SOURCES = ['Reuters','Bloomberg','CNBC','Wall Street Journal','WSJ','Financial Times','FT','MarketWatch',"Barron's",'Business Standard','Economic Times','Mint','Moneycontrol','Zerohedge','Investing.com','Trading Economics','Associated Press','AP'];
+function extractMeta(text, sentences){
+  let source='';
+  for(const s of KNOWN_SOURCES){
+    if(new RegExp('\\b'+s.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')+'\\b','i').test(text)){ source=s; break; }
+  }
+  if(!source){
+    const m = /(?:according to|via|source:|reported by)\s+([A-Z][A-Za-z.&\s]{2,30})/.exec(text);
+    if(m) source = m[1].trim();
+  }
+  let session='';
+  const sessionMatch = /\b(US session|Asian session|European session|London session|pre-market|after[\s-]hours|overnight session)\b/i.exec(text);
+  if(sessionMatch) session = sessionMatch[0].replace(/^\w/,c=>c.toUpperCase());
+  let headline='';
+  if(sentences.length){
+    let best='', bestScore=0;
+    sentences.forEach(s=>{ const sc = scoreSentence(s); if(sc>bestScore){ bestScore=sc; best=s; } });
+    if(best) headline = trimToWords(best, 16);
+  }
+  return {source, session, headline};
+}
+
+function extractIntelligenceLocal(rawText){
+  const normalized = rawText.replace(/\r\n/g,'\n').replace(/[\u201c\u201d]/g,'"').replace(/[\u2018\u2019]/g,"'").replace(/[\u2013\u2014]/g,'-').replace(/\u00A0/g,' ');
+  const protectedText = protectText(normalized);
+  const sentences = splitSentences(protectedText);
+  const macro = extractMacro(protectedText);
+  const assets = extractAssets(protectedText);
+  const pos = extractPositioning(protectedText, macro, assets);
+  const { events, watchlist } = extractEventsAndWatchlist(sentences);
+  const narratives = extractNarratives(protectedText);
+  const meta = extractMeta(normalized, sentences);
+  return { meta, macro, bias:assets.bias, matrix:assets.matrix, pos, events, narratives, watchlist };
+}
+
+/* ============================================================
+   MERGE — combines a fresh (partial) extraction with whatever's
+   already on screen. Per spec: a new paste updates only the
+   sections it actually found data for; everything else keeps its
+   previous value. No empty states, no unnecessary resets — the
+   dashboard only ever moves forward, field by field.
+   ============================================================ */
+function mergeWithPrevious(fresh, previousDataset){
   const base = previousDataset || normalizeDataset({});
-  const data = {
-    meta:   n1 ? n1.meta   : base.meta,
-    macro:  n1 ? n1.macro  : base.macro,
-    bias:   n1 ? n1.bias   : base.bias,
-    matrix: n1 ? n1.matrix : base.matrix,
-    pos:    n1 ? n1.pos    : base.pos,
-    events:     n2 ? n2.events     : base.events,
-    narratives: n2 ? n2.narratives : base.narratives,
-    watchlist:  n2 ? n2.watchlist  : base.watchlist,
+  let foundCount = 0;
+
+  const macro = {};
+  MACRO_DEFS.forEach(m=>{
+    const f = fresh.macro[m.id];
+    if(f && f.cur){ macro[m.id]=f; foundCount++; } else { macro[m.id]=base.macro[m.id]; }
+  });
+
+  const bias = {}, matrix = {};
+  ASSET_DEFS.forEach(a=>{
+    const f = fresh.bias[a.id];
+    if(f && f.b){ bias[a.id]=f; matrix[a.id]=fresh.matrix[a.id]; foundCount++; }
+    else { bias[a.id]=base.bias[a.id]; matrix[a.id]=base.matrix[a.id]; }
+  });
+
+  const pos = POS_DEFS.map(p=>{
+    const f = fresh.pos.find(x=>x.id===p.id);
+    if(f && f.v){ foundCount++; return f; }
+    return base.pos.find(x=>x.id===p.id) || {id:p.id, label:p.label, v:'', tone:'none'};
+  });
+
+  const events = fresh.events.length ? fresh.events : base.events;
+  const narratives = fresh.narratives.length ? fresh.narratives : base.narratives;
+  const watchlist = fresh.watchlist.length ? fresh.watchlist : base.watchlist;
+  foundCount += fresh.events.length + fresh.narratives.length + fresh.watchlist.length;
+
+  const meta = {
+    source: fresh.meta.source || base.meta.source,
+    session: fresh.meta.session || base.meta.session,
+    headline: fresh.meta.headline || base.meta.headline,
   };
-  const warnings = [];
-  if(r1.status==='rejected') warnings.push('macro / bias / positioning (kept previous)');
-  if(r2.status==='rejected') warnings.push('events / narratives / watchlist (kept previous)');
-  return { data, warnings };
+  if(fresh.meta.source) foundCount++;
+  if(fresh.meta.session) foundCount++;
+  if(fresh.meta.headline) foundCount++;
+
+  return { data:{meta,macro,bias,matrix,pos,events,narratives,watchlist}, foundCount };
 }
 
 /* ============================================================
@@ -755,8 +1206,8 @@ function renderStatusPills(){
   pills.push(`<span class="pill">Updated: ${lastUpdatedAt ? fmtTime(lastUpdatedAt) : '—'}</span>`);
   pills.push(`<span class="pill">Source: ${dataset && dataset.meta.source ? esc(dataset.meta.source) : '—'}</span>`);
   pills.push(`<span class="pill">${esc(computeMarketSession())}</span>`);
-  const refreshTxt = lastWarnings.length ? 'Refresh: Partial' : (dataset ? 'Refresh: Up To Date' : 'Refresh: —');
-  pills.push(`<span class="pill${lastWarnings.length?' pill--error':''}">${refreshTxt}</span>`);
+  const refreshTxt = (typeof lastFoundCount==='number') ? `Signals: ${lastFoundCount} Found` : (dataset ? 'Refresh: Up To Date' : 'Refresh: —');
+  pills.push(`<span class="pill">${refreshTxt}</span>`);
   pills.push(isParsing ? `<span class="pill pill--parsing">Parsing…</span>` : `<span class="pill">Parse: Idle</span>`);
   $('#statusPills').innerHTML = pills.join('');
 }
@@ -1015,19 +1466,27 @@ async function handleNewIntelligence(rawText){
   renderStatusPills();
   $('#retryBtn').classList.add('spin');
   try{
-    const { data, warnings } = await extractIntelligence(rawText, dataset);
-    dataset = data;
-    isDemo = false;
-    lastUpdatedAt = new Date();
-    lastWarnings = warnings;
-    renderAll();
-    persistDataset(dataset, false);
-    $('#pasteZone').value = '';
-    $('#pasteZone').style.height = '';
-    if(warnings.length) showError('Partial refresh — kept previous values for: ' + warnings.join('; ') + '.');
+    // brief pause purely so the "Parsing…" state is perceptible — the local
+    // engine itself resolves in milliseconds, no network round-trip involved
+    await new Promise(r=>setTimeout(r, 220));
+    const rawExtracted = extractIntelligenceLocal(rawText);
+    const fresh = normalizeDataset(rawExtracted);
+    const { data, foundCount } = mergeWithPrevious(fresh, dataset);
+    if(foundCount === 0){
+      showError('Couldn\u2019t find any recognizable market intelligence in that text — try pasting a fuller excerpt.');
+    } else {
+      dataset = data;
+      isDemo = false;
+      lastUpdatedAt = new Date();
+      lastFoundCount = foundCount;
+      renderAll();
+      persistDataset(dataset, false);
+      $('#pasteZone').value = '';
+      $('#pasteZone').style.height = '';
+    }
   }catch(err){
     console.error(err);
-    showError((err && err.message) ? err.message : 'Parsing failed — please try again.');
+    showError('Parsing failed — please try again with different text.');
   }finally{
     isParsing = false;
     $('#retryBtn').classList.remove('spin');
@@ -1059,7 +1518,7 @@ function wireEvents(){
   });
 
   $('#sampleBtn').addEventListener('click', ()=>{
-    dataset = SAMPLE_DATASET; isDemo = true; lastUpdatedAt = new Date(); lastWarnings = [];
+    dataset = SAMPLE_DATASET; isDemo = true; lastUpdatedAt = new Date(); lastFoundCount = null;
     clearError(); renderAll(); persistDataset(dataset, true);
   });
 
