@@ -182,7 +182,7 @@ button{ font-family:inherit; }
 .kpi-tile{
   background:var(--card); padding:10px 12px; border-left:3px solid var(--macro);
   display:flex; flex-direction:column; gap:4px; min-height:88px;
-  transition:background .15s ease;
+  transition:background .15s ease; cursor:pointer;
 }
 .kpi-tile:hover{ background:var(--card-raised); }
 .kpi-tile.no-data{ border-left-color:var(--border); opacity:0.5; }
@@ -202,7 +202,9 @@ button{ font-family:inherit; }
 .bias-card{
   background:var(--card); border:1px solid var(--border); border-top:3px solid var(--neutral);
   border-radius:var(--radius); padding:13px 14px; display:flex; flex-direction:column; gap:9px;
+  cursor:pointer; transition:background .15s ease;
 }
+.bias-card:hover{ background:var(--card-raised); }
 .bias-card.no-data{ border-top-color:var(--border); opacity:0.5; }
 .bias-card[data-bias="bullish"]{ border-top-color:var(--bull); }
 .bias-card[data-bias="bearish"]{ border-top-color:var(--bear); }
@@ -482,55 +484,51 @@ function normalizeDataset(raw){
   const macro = {};
   MACRO_DEFS.forEach(m=>{
     const v = (d.macro && d.macro[m.id]) || {};
-    macro[m.id] = { cur:v.cur||'', prev:v.prev||'', cons:v.cons||'', d:v.d||'na', note:v.note||'' };
+    macro[m.id] = { cur:v.cur||'', prev:v.prev||'', cons:v.cons||'', d:v.d||'na', note:v.note||'', src:v.src||'' };
   });
   const bias = {};
   ASSET_DEFS.forEach(a=>{
     const v = (d.bias && d.bias[a.id]) || {};
-    bias[a.id] = { b:v.b||'', cf:(typeof v.cf==='number'?v.cf:null), pd:v.pd||'', br:v.br||'', nc:v.nc||'' };
+    bias[a.id] = { b:v.b||'', cf:(typeof v.cf==='number'?v.cf:null), pd:v.pd||'', br:v.br||'', nc:v.nc||'', src:v.src||'' };
   });
   const matrix = {};
   ASSET_DEFS.forEach(a=>{
     const v = (d.matrix && d.matrix[a.id]) || {};
-    matrix[a.id] = { bd:v.bd||'', brd:v.brd||'', cd:v.cd||'', b:v.b||'', cf:(typeof v.cf==='number'?v.cf:null) };
+    matrix[a.id] = { bd:v.bd||'', brd:v.brd||'', cd:v.cd||'', b:v.b||'', cf:(typeof v.cf==='number'?v.cf:null), src:v.src||'' };
   });
   const pos = POS_DEFS.map(p=>{
     const src = (d.pos && d.pos[p.id]);
-    return { id:p.id, label:p.label, v:(src&&src.v)||'', tone:(src&&src.tone)||'none' };
+    return { id:p.id, label:p.label, v:(src&&src.v)||'', tone:(src&&src.tone)||'none', src:(src&&src.src)||'' };
   });
   const events = Array.isArray(d.events) ? d.events.filter(e=>e && e.h).slice(0,6).map(e=>({
-    cat:e.cat||'', t:e.t||'', h:e.h||'', w:e.w||'', aa:e.aa||'', imp:e.imp||'Low'
+    cat:e.cat||'', t:e.t||'', dt:e.dt||'', h:e.h||'', w:e.w||'', aa:e.aa||'', imp:e.imp||'Low', src:e.src||''
   })) : [];
   const narratives = Array.isArray(d.narratives) ? d.narratives.filter(n=>n && n.n).slice(0,6).map(n=>({
-    n:n.n||'', tone:n.tone||'neutral', s:(typeof n.s==='number'?n.s:50), aa:n.aa||''
+    n:n.n||'', tone:n.tone||'neutral', s:(typeof n.s==='number'?n.s:50), aa:n.aa||'', src:n.src||''
   })) : [];
   const watchlist = Array.isArray(d.watchlist) ? d.watchlist.filter(w=>w && w.e).slice(0,8).map(w=>({
-    t:w.t||'', e:w.e||'', f:w.f||'', imp:w.imp||'Low', aa:w.aa||''
+    t:w.t||'', dt:w.dt||'', e:w.e||'', f:w.f||'', imp:w.imp||'Low', aa:w.aa||'', src:w.src||''
   })) : [];
+  const today = Array.isArray(d.today) ? d.today.filter(x=>x && x.title).slice(0,5).map(x=>({
+    cat:x.cat||'', t:x.t||'', title:x.title||'', aa:x.aa||'', up:x.up||'', down:x.down||'', src:x.src||''
+  })) : [];
+  const summary = {
+    bullets: Array.isArray(d.summary && d.summary.bullets) ? d.summary.bullets.filter(Boolean).slice(0,8) : []
+  };
   const meta = {
     source:(d.meta&&d.meta.source)||'', session:(d.meta&&d.meta.session)||'', headline:(d.meta&&d.meta.headline)||''
   };
-  return { meta, macro, bias, matrix, pos, events, narratives, watchlist };
+  return { meta, macro, bias, matrix, pos, events, narratives, watchlist, today, summary };
 }
 
-/* ============================================================
-   LOCAL EXTRACTION ENGINE
-   Pure text-in / structured-data-out pattern matching — no network
-   call, no API key, no bounded-token JSON to go wrong. Runs
-   entirely in this tab, so it works the same whether this page is
-   opened inside Claude or deployed as a standalone site, and never
-   sends pasted text anywhere. Extracts ONLY what the text actually
-   supports — every dictionary miss stays "" (rendered as a dash by
-   normalizeDataset's callers), never guessed.
-   ============================================================ */
+/* ==========================================================================
+   LOCAL MARKET-INTELLIGENCE EXTRACTION ENGINE — draft / test harness v3
+   ========================================================================== */
+
 const MACRO_ORDER = MACRO_DEFS.map(m=>m.id);
 const LOCAL_ASSET_IDS = ASSET_DEFS.map(a=>a.id);
 
-// -- text protection: keeps decimals ("3.2"), abbreviations ("U.S.",
-// "Rs.") and ellipses from being mistaken for sentence-ending
-// punctuation while we search for clause boundaries. Every window
-// function below unprotects its own return value, so callers always
-// work with normal text.
+/* ---------- text protection ---------- */
 const PUA = '\uE000';
 function protectText(text){
   return text
@@ -539,6 +537,8 @@ function protectText(text){
     .replace(/\b(Mr|Mrs|Ms|Dr|Jr|Sr|vs|etc|approx|Inc|Corp|Ltd|St|No|Rs|U\.S|U\.K|e\.g|i\.e)\./gi, m=>m.replace('.',PUA));
 }
 function unprotectText(text){ return text.split(PUA).join('.'); }
+
+/* ---------- generic helpers ---------- */
 
 function findKeywordOccurrences(text, regexList){
   const hits = [];
@@ -554,55 +554,79 @@ function findKeywordOccurrences(text, regexList){
   hits.sort((a,b)=>a.index-b.index);
   const out = [];
   hits.forEach(h=>{
-    if(!out.length || h.index > out[out.length-1].index + out[out.length-1].length) out.push(h);
+    if(!out.length || h.index > out[out.length-1].index + out[out.length-1].length){
+      out.push(h);
+    }
   });
   return out;
 }
+
 function windowAround(protectedText, start, end, back, fwd){
   back = back||90; fwd = fwd||140;
   let lo = Math.max(0, start-back);
   let hi = Math.min(protectedText.length, end+fwd);
   const seg = protectedText.slice(lo, start);
   const lastBoundary = Math.max(seg.lastIndexOf('.'), seg.lastIndexOf('!'), seg.lastIndexOf('?'), seg.lastIndexOf('\n'), seg.lastIndexOf(';'));
-  if(lastBoundary !== -1) lo = lo + lastBoundary + 1;
+  if(lastBoundary !== -1){
+    lo = lo + lastBoundary + 1;
+  } else if(lo > 0){
+    // no punctuation boundary within range — snap forward to the next word
+    // boundary so text shown verbatim in the detail view never starts mid-word
+    const sp = protectedText.indexOf(' ', lo);
+    if(sp !== -1 && sp < start) lo = sp + 1;
+  }
   const segF = protectedText.slice(end, hi);
   const nextBoundary = segF.search(/[.!?\n]/);
-  if(nextBoundary !== -1) hi = end + nextBoundary + 1;
+  if(nextBoundary !== -1){
+    hi = end + nextBoundary + 1;
+  } else if(hi < protectedText.length){
+    const sp = protectedText.lastIndexOf(' ', hi);
+    if(sp !== -1 && sp > end) hi = sp;
+  }
   return unprotectText(protectedText.slice(lo, hi).trim());
 }
+
 function trimToWords(s, n){
   const clean = (s||'').replace(/\s+/g,' ').trim().replace(/^[,;:\-\s]+|[,;:\-\s]+$/g,'');
   const words = clean.split(' ');
   if(words.length<=n) return clean;
-  return words.slice(0,n).join(' ') + '\u2026';
+  return words.slice(0,n).join(' ') + '…';
 }
+// trims to n words starting from a raw char offset, snapping forward to the
+// next word boundary so we never cut a word in half
 function trimFromOffset(s, offset, n){
   const spacePos = s.indexOf(' ', offset);
   const start = (spacePos===-1 || spacePos>offset+12) ? offset : spacePos+1;
   return trimToWords(s.slice(start), n);
 }
+
 function dedupeShortlist(arr, max){
-  const seen = new Set(); const out = [];
+  const seen = new Set();
+  const out = [];
   for(const item of arr){
     const key = item.toLowerCase();
     if(!item || seen.has(key)) continue;
-    seen.add(key); out.push(item);
+    seen.add(key);
+    out.push(item);
     if(out.length>=max) break;
   }
   return out;
 }
+
 function isNegated(context, matchIndex){
   const before = context.slice(Math.max(0, matchIndex-18), matchIndex).toLowerCase();
   return /\b(not|no|non|never|n't|isn't|wasn't|without|despite|fails?\s+to|unable\s+to)\s+[\w\s]{0,8}$/.test(before);
 }
-// catches "yields fell" AND "falling yields" — either order — so a
-// yield move doesn't get misread as a direct statement about
-// whichever asset happens to sit nearby in the same clause.
+// catches "yields fell" AND "falling yields" — either order — so generic
+// asset sentiment doesn't misread a yield-move as a direct statement about
+// the asset sitting nearby in the same clause.
 function isYieldModified(context, matchIndex, matchLength){
   const before = context.slice(Math.max(0, matchIndex-16), matchIndex).toLowerCase();
   const after = context.slice(matchIndex+matchLength, matchIndex+matchLength+26).toLowerCase();
   return /\byields?\s+(?:\w+\s+){0,2}$/.test(before) || /^\s+(?:real\s+)?(?:treasury\s+)?yields?\b/.test(after);
 }
+
+/* ---------- numeric extraction ---------- */
 
 function extractNumberTokens(str){
   const re = /-?\$?\d[\d,]*(?:\.\d+)?\s?(?:%|bps|bp)?/g;
@@ -610,11 +634,12 @@ function extractNumberTokens(str){
   return all.filter(t=>{
     if(/%/.test(t.text)) return true; // a % reading is never just a duration label
     const after = str.slice(t.end, t.end+8);
-    if(/^-\s?year\b/i.test(after)) return false;             // "10-year", "2-year"
-    if(/^Y\b/.test(str.slice(t.end,t.end+1))) return false;  // "10Y" shorthand
+    if(/^-\s?year\b/i.test(after)) return false;              // "10-year", "2-year"
+    if(/^Y\b/.test(str.slice(t.end,t.end+1))) return false;   // "10Y" shorthand
     return true;
   });
 }
+
 function classifyNumbers(context, numberTokens){
   let cur='', prev='', cons='';
   const lower = context.toLowerCase();
@@ -637,6 +662,7 @@ function classifyNumbers(context, numberTokens){
 const UP_WORDS   = /\b(ros[ei]|rising|risen|higher|climb(?:ed|ing)?|jump(?:ed|ing)?|surg(?:e|ed|ing)|increas(?:e|ed|ing)|gain(?:ed|s)?|accelerat(?:e|ed|ing)|advanc(?:e|ed|ing)|spik(?:e|ed|ing)|beats?|topped|stronger.than.expected|higher.than.expected)\b/i;
 const DOWN_WORDS = /\b(fell|falling|fallen|lower|declin(?:e|ed|ing)|decreas(?:e|ed|ing)|dropp?(?:ed|ing)?|eas(?:e|ed|ing)|cool(?:ed|ing)?|slow(?:ed|ing)?|slipp?(?:ed|ing)?|retreat(?:ed|ing)?|soften(?:ed|ing)?|weaken(?:ed|ing)?|miss(?:ed)?|below.forecast|cooler.than.expected|lower.than.expected)\b/i;
 const FLAT_WORDS = /\b(unchanged|steady|held|holds?|holding|flat|in line|matched|as expected|no change|maintained|paused|stable)\b/i;
+
 function detectTrend(context, cur, prev){
   const curN = parseFloat((cur||'').replace(/[^0-9.\-]/g,''));
   const prevN = parseFloat((prev||'').replace(/[^0-9.\-]/g,''));
@@ -650,6 +676,8 @@ function detectTrend(context, cur, prev){
   if(DOWN_WORDS.test(context)) return 'down';
   return 'na';
 }
+
+/* ---------- macro dictionary ---------- */
 
 const MACRO_PATTERNS = {
   cpiC:  [/\bcore\s+cpi\b/i, /\bcore\s+consumer\s+price\s+index\b/i, /\bcore\s+inflation\b/i],
@@ -665,26 +693,28 @@ const MACRO_PATTERNS = {
   brent: [/\bbrent\b/i],
   vix:   [/\bvix\b/i, /\bvolatility\s+index\b/i, /\bfear\s+index\b/i],
 };
+
 function extractMacro(protectedText){
   // flat, position-sorted list of every indicator hit, so a window can be
   // clipped at the nearest *different-indicator* neighbor and never borrow
-  // a number that actually belongs to the indicator next door (e.g. "the
-  // 10-year yield fell to 4.02%, while the 2-year yield slid to 4.28%").
+  // a number that actually belongs to the indicator next door.
   const allHits = [];
   MACRO_ORDER.forEach(id=>{
     findKeywordOccurrences(protectedText, MACRO_PATTERNS[id]).forEach(h=>allHits.push({...h, id}));
   });
   allHits.sort((a,b)=>a.index-b.index);
+
   const out = {};
   MACRO_ORDER.forEach(id=>{
     let best=null, bestScore=-1;
     allHits.forEach((h,i)=>{
       if(h.id!==id) return;
       const nextOther = allHits.slice(i+1).find(x=>x.id!==id);
-      // number search is forward-biased: "KEYWORD ... NUMBER" is the
-      // dominant financial-prose pattern, and searching far backward risks
-      // grabbing a neighboring indicator's number instead of this one's.
-      const fwdLim = nextOther ? Math.max(20, Math.min(70, nextOther.index-(h.index+h.length))) : 70;
+      // number search is forward-biased: "KEYWORD ... NUMBER" is the dominant
+      // financial-prose pattern, and searching backward risks grabbing a
+      // neighboring indicator's number when two are compared in one sentence
+      // (e.g. "...10-year yield to 4.02%, while the 2-year yield slid to 4.28%").
+      const fwdLim  = nextOther ? Math.max(20, Math.min(70, nextOther.index-(h.index+h.length))) : 70;
       const narrowCtx = windowAround(protectedText, h.index, h.index+h.length, 10, fwdLim);
       const wideCtx = windowAround(protectedText, h.index, h.index+h.length, 90, 140);
       const nums = extractNumberTokens(narrowCtx);
@@ -692,12 +722,16 @@ function extractMacro(protectedText){
       const score = (cur?2:0)+(prev?1:0)+(cons?1:0);
       if(score>bestScore){ bestScore=score; best={wideCtx,cur,prev,cons}; }
     });
-    out[id] = (best && best.cur)
-      ? { cur:best.cur, prev:best.prev, cons:best.cons, d:detectTrend(best.wideCtx,best.cur,best.prev), note:trimToWords(best.wideCtx,9) }
-      : { cur:'', prev:'', cons:'', d:'na', note:'' };
+    if(best && best.cur){
+      out[id] = { cur:best.cur, prev:best.prev, cons:best.cons, d:detectTrend(best.wideCtx,best.cur,best.prev), note:trimToWords(best.wideCtx,9), src:best.wideCtx };
+    } else {
+      out[id] = { cur:'', prev:'', cons:'', d:'na', note:'', src:'' };
+    }
   });
   return out;
 }
+
+/* ---------- asset dictionary + sentiment ---------- */
 
 const ASSET_ALIASES = {
   gold:    [/\bgold\b/i, /\bxau\s?\/?\s?usd\b/i, /\bbullion\b/i],
@@ -706,6 +740,7 @@ const ASSET_ALIASES = {
   usBonds: [/\btreasur(?:y|ies)\b/i, /\bus\s+bonds?\b/i, /\bbond\s+market\b/i, /\bt-notes?\b/i, /\bt-bonds?\b/i],
   btc:     [/\bbitcoin\b/i, /\bbtc\b/i, /\bcrypto(?:currency)?\b/i],
 };
+
 const BULLISH_WORDS = /\b(bullish\s+on|turn(?:ed|ing)?\s+bullish|remains?\s+bullish|rall(?:y|ied|ying)|ros[ei]|rising|gain(?:s|ed)?|higher|surg(?:e|ed|ing)|jump(?:ed|ing)?|strengthen(?:ed|ing)?|outperform(?:ed|ing)?|buying|inflows?|support(?:ed|ive)?|upside|breakout|accumulat(?:e|ed|ing|ion)|tailwind|boost(?:ed)?|buoyed(?:\s+by)?|climb(?:ed|ing)?|advanc(?:e|ed|ing)|record\s+high|fresh\s+(?:\w+[\s-])?highs?|multi.week\s+highs?|multi.month\s+highs?|upgrad(?:e|ed)|beats?|strong\s+demand|safe.haven\s+demand|up(?!\s+to\b|\s+next\b))\b/;
 const BULLISH_RE = new RegExp(BULLISH_WORDS.source, 'gi');
 const BEARISH_WORDS = /\b(bearish\s+on|turn(?:ed|ing)?\s+bearish|remains?\s+bearish|sell.?off|sold\s+off|selling|fell|falling|declin(?:e|ed|ing)|dropp?(?:ed|ing)?|weak(?:ness)?|pressure[d]?|downside|breakdown|outflows?|losses|slid(?:e|ing)?|plung(?:e|ed|ing)?|retreat(?:ed|ing)?|headwind|weigh(?:ed|ing)?\s+down|downgrad(?:e|ed)|misses?|missed|profit.taking|correction|under\s+pressure|down(?!\s+the\b|\s+to\b))\b/;
@@ -723,6 +758,7 @@ function extractDriverPhrase(ctx){
   if(m) return trimToWords(unprotectText(m[1]), 8);
   return trimToWords(ctx, 8);
 }
+
 function computeLocalSentiment(ctx, isBondAsset){
   let localBull=0, localBear=0, m;
   if(isBondAsset){
@@ -737,11 +773,12 @@ function computeLocalSentiment(ctx, isBondAsset){
   while((m=BEARISH_RE.exec(ctx))){ if(!isYieldModified(ctx,m.index,m[0].length) && !isNegated(ctx,m.index)) localBear++; }
   return {localBull, localBear};
 }
+
 function scanAssetSignal(protectedText, aliasRes, isBondAsset){
   const hits = findKeywordOccurrences(protectedText, aliasRes);
   if(!hits.length) return null;
   let bullWeight=0, bearWeight=0, strongCount=0, hedgeCount=0;
-  const bullPhrases=[], bearPhrases=[], riskPhrases=[];
+  const bullPhrases=[], bearPhrases=[], riskPhrases=[], srcContexts=[];
   let bestDriver='', bestDriverWeight=-1, nextCatalyst='';
   hits.forEach(h=>{
     const ctx = windowAround(protectedText, h.index, h.index+h.length, 70, 130);
@@ -754,11 +791,13 @@ function scanAssetSignal(protectedText, aliasRes, isBondAsset){
       bullWeight+=localBull;
       const phrase = extractDriverPhrase(ctx);
       bullPhrases.push(phrase);
+      srcContexts.push(ctx);
       if(localBull>bestDriverWeight){ bestDriverWeight=localBull; bestDriver=phrase; }
     } else if(localBear>localBull && localBear>0){
       bearWeight+=localBear;
       const phrase = extractDriverPhrase(ctx);
       bearPhrases.push(phrase);
+      srcContexts.push(ctx);
       if(localBear>bestDriverWeight){ bestDriverWeight=localBear; bestDriver=phrase; }
     }
     const futureMatch = FUTURE_WORDS.exec(ctx);
@@ -781,22 +820,28 @@ function scanAssetSignal(protectedText, aliasRes, isBondAsset){
   let pd, br;
   if(bias==='Bearish'){ pd = brdList[0]||cd||''; br = bdList[0]||riskPhrases[0]||''; }
   else { pd = bdList[0]||cd||''; br = riskPhrases[0]||brdList[0]||''; }
-  return { bias, cf, bd, brd, cd, pd, br, nc:nextCatalyst };
+  // representative source text for the "why does this show what it shows" detail view
+  const src = dedupeShortlist(srcContexts.length?srcContexts:hits.map(h=>windowAround(protectedText,h.index,h.index+h.length,70,130)), 3).join(' … ');
+  return { bias, cf, bd, brd, cd, pd, br, nc:nextCatalyst, src };
 }
-function extractAssets(protectedText){
+
+function extractAssets(protectedText, assetIds){
   const bias={}, matrix={};
-  LOCAL_ASSET_IDS.forEach(id=>{
+  assetIds.forEach(id=>{
     const sig = scanAssetSignal(protectedText, ASSET_ALIASES[id], id==='usBonds');
     if(!sig){
-      bias[id] = {b:'',cf:null,pd:'',br:'',nc:''};
-      matrix[id] = {bd:'',brd:'',cd:'',b:'',cf:null};
+      bias[id] = {b:'',cf:null,pd:'',br:'',nc:'',src:''};
+      matrix[id] = {bd:'',brd:'',cd:'',b:'',cf:null,src:''};
     } else {
-      bias[id] = { b:sig.bias, cf:sig.cf, pd:sig.pd||'', br:sig.br||'', nc:sig.nc||'' };
-      matrix[id] = { bd:sig.bd||'', brd:sig.brd||'', cd:sig.cd||'', b:sig.bias, cf:sig.cf };
+      bias[id] = { b:sig.bias, cf:sig.cf, pd:sig.pd||'', br:sig.br||'', nc:sig.nc||'', src:sig.src||'' };
+      matrix[id] = { bd:sig.bd||'', brd:sig.brd||'', cd:sig.cd||'', b:sig.bias, cf:sig.cf, src:sig.src||'' };
     }
   });
   return {bias, matrix};
 }
+
+/* ---------- theme / positioning dictionary ---------- */
+
 
 const THEME_CONFIG = {
   risk:      { anchor:[/\brisk[\s-]?on\b/i,/\brisk[\s-]?off\b/i,/\brisk\s+appetite\b/i,/\brisk\s+sentiment\b/i,/\brisk\s+aversion\b/i],
@@ -820,54 +865,57 @@ const THEME_CONFIG = {
                bear:[/\bhawkish\b/i,/\bhik(?:e|ing)\s+rates?\b/i,/\bhigher[\s-]for[\s-]longer\b/i],
                labelBull:'Leaning Dovish', labelBear:'Leaning Hawkish' },
 };
+
 function scanTheme(protectedText, cfg){
   const hits = findKeywordOccurrences(protectedText, cfg.anchor);
   if(!hits.length) return null;
   let bullN=0, bearN=0;
+  const contexts = [];
   hits.forEach(h=>{
     const ctx = windowAround(protectedText, h.index, h.index+h.length, 60, 100);
+    contexts.push(ctx);
     cfg.bull.forEach(re=>{ if(re.test(ctx)) bullN++; });
     cfg.bear.forEach(re=>{ if(re.test(ctx)) bearN++; });
   });
   if(bullN===0 && bearN===0) return null;
   const tone = bullN>bearN?'bullish':bearN>bullN?'bearish':'neutral';
   const v = bullN>bearN?cfg.labelBull:bearN>bullN?cfg.labelBear:'Mixed Signals';
-  return {v, tone};
+  return {v, tone, src:dedupeShortlist(contexts,2).join(' … ')};
 }
+
 function extractPositioning(protectedText, macro, assets){
   const pos = {};
   ['risk','inflation','growth','liquidity','fed'].forEach(id=>{
     const r = scanTheme(protectedText, THEME_CONFIG[id]);
-    pos[id] = r ? r : {v:'',tone:'none'};
+    pos[id] = r ? r : {v:'',tone:'none',src:''};
   });
   if(!pos.inflation.v && macro.cpiH && macro.cpiH.d && macro.cpiH.d!=='na'){
-    pos.inflation = macro.cpiH.d==='down' ? {v:'Cooling',tone:'bullish'} : macro.cpiH.d==='up' ? {v:'Accelerating',tone:'bearish'} : {v:'Steady',tone:'neutral'};
+    pos.inflation = macro.cpiH.d==='down' ? {v:'Cooling',tone:'bullish',src:macro.cpiH.src} : macro.cpiH.d==='up' ? {v:'Accelerating',tone:'bearish',src:macro.cpiH.src} : {v:'Steady',tone:'neutral',src:macro.cpiH.src};
   }
-  // dollar/bond/gold themes derive from the matching macro/asset signal
-  // first, so this panel can never contradict the DXY tile or the
-  // gold/bond bias strip sitting right next to it.
   if(macro.dxy && macro.dxy.d && macro.dxy.d!=='na'){
-    pos.dollar = macro.dxy.d==='down' ? {v:'Softening',tone:'bullish'} : macro.dxy.d==='up' ? {v:'Strengthening',tone:'bearish'} : {v:'Steady',tone:'neutral'};
+    pos.dollar = macro.dxy.d==='down' ? {v:'Softening',tone:'bullish',src:macro.dxy.src} : macro.dxy.d==='up' ? {v:'Strengthening',tone:'bearish',src:macro.dxy.src} : {v:'Steady',tone:'neutral',src:macro.dxy.src};
   } else {
     const r = scanTheme(protectedText, { anchor:[/\bdollar\b/i,/\bdxy\b/i,/\bgreenback\b/i], bull:[/\bsoft(?:en(?:ing|ed))?\b/i,/\bweak(?:ening|ness)?\b/i,/\blower\b/i], bear:[/\bstrength(?:en(?:ing|ed))?\b/i,/\brall(?:y|ying|ied)\b/i,/\bfirm(?:er|ing)?\b/i], labelBull:'Softening', labelBear:'Strengthening' });
-    pos.dollar = r ? r : {v:'',tone:'none'};
+    pos.dollar = r ? r : {v:'',tone:'none',src:''};
   }
   if(assets.bias.usBonds && assets.bias.usBonds.b){
     const b = assets.bias.usBonds.b;
-    pos.bond = b==='Bullish' ? {v:'Yields Falling',tone:'bullish'} : b==='Bearish' ? {v:'Yields Rising',tone:'bearish'} : {v:'Range-Bound',tone:'neutral'};
+    pos.bond = b==='Bullish' ? {v:'Yields Falling',tone:'bullish',src:assets.bias.usBonds.src} : b==='Bearish' ? {v:'Yields Rising',tone:'bearish',src:assets.bias.usBonds.src} : {v:'Range-Bound',tone:'neutral',src:assets.bias.usBonds.src};
   } else if(macro.y10 && macro.y10.d && macro.y10.d!=='na'){
-    pos.bond = macro.y10.d==='down' ? {v:'Yields Falling',tone:'bullish'} : macro.y10.d==='up' ? {v:'Yields Rising',tone:'bearish'} : {v:'Steady',tone:'neutral'};
+    pos.bond = macro.y10.d==='down' ? {v:'Yields Falling',tone:'bullish',src:macro.y10.src} : macro.y10.d==='up' ? {v:'Yields Rising',tone:'bearish',src:macro.y10.src} : {v:'Steady',tone:'neutral',src:macro.y10.src};
   } else {
-    pos.bond = {v:'',tone:'none'};
+    pos.bond = {v:'',tone:'none',src:''};
   }
   if(assets.bias.gold && assets.bias.gold.b){
     const b = assets.bias.gold.b;
-    pos.gold = b==='Bullish' ? {v:'Accumulating',tone:'bullish'} : b==='Bearish' ? {v:'Under Pressure',tone:'bearish'} : {v:'Consolidating',tone:'neutral'};
+    pos.gold = b==='Bullish' ? {v:'Accumulating',tone:'bullish',src:assets.bias.gold.src} : b==='Bearish' ? {v:'Under Pressure',tone:'bearish',src:assets.bias.gold.src} : {v:'Consolidating',tone:'neutral',src:assets.bias.gold.src};
   } else {
-    pos.gold = {v:'',tone:'none'};
+    pos.gold = {v:'',tone:'none',src:''};
   }
   return pos;
 }
+
+/* ---------- narrative dictionary ---------- */
 
 const NARRATIVE_DICT = [
   { n:'Fed Pivot', res:[/\bfed\s+pivot\b/i,/\bdovish\s+pivot\b/i,/\bpivot(?:ing)?\s+to\s+(?:rate\s+)?cuts\b/i,/\bpricing\s+in\s+(?:a\s+)?(?:rate\s+)?cuts?\b/i], tone:'bullish' },
@@ -890,6 +938,11 @@ const NARRATIVE_DICT = [
   { n:'Central Bank Buying', res:[/\bcentral\s+bank\s+buying\b/i,/\bcb\s+buying\b/i,/\bofficial\s+sector\s+demand\b/i], tone:'bullish' },
   { n:'Supply Discipline', res:[/\bsupply\s+discipline\b/i,/\bproduction\s+cuts?\b/i,/\bvoluntary\s+cuts?\b/i], tone:'neutral' },
 ];
+
+function assetLabelFor(id){
+  return {gold:'Gold', nifty:'Nifty', usEq:'US Equities', usBonds:'US Bonds', btc:'Bitcoin'}[id]||id;
+}
+
 function extractNarratives(protectedText){
   const found = [];
   NARRATIVE_DICT.forEach(entry=>{
@@ -897,17 +950,21 @@ function extractNarratives(protectedText){
     if(!hits.length) return;
     let strongBump = 0;
     const assetSet = new Set();
+    const contexts = [];
     hits.forEach(h=>{
       const ctx = windowAround(protectedText, h.index, h.index+h.length, 180, 220);
+      contexts.push(ctx);
       if(STRONG_WORDS.test(ctx)) strongBump++;
-      LOCAL_ASSET_IDS.forEach(id=>{ if(findKeywordOccurrences(ctx, ASSET_ALIASES[id]).length) assetSet.add(assetLabel(id)); });
+      LOCAL_ASSET_IDS.forEach(id=>{ if(findKeywordOccurrences(ctx, ASSET_ALIASES[id]).length) assetSet.add(assetLabelFor(id)); });
     });
     const s = Math.max(30, Math.min(95, 40 + hits.length*15 + strongBump*8));
-    found.push({ n:entry.n, tone:entry.tone, s, aa:[...assetSet].slice(0,4).join(', ') });
+    found.push({ n:entry.n, tone:entry.tone, s, aa:[...assetSet].slice(0,4).join(', '), src:dedupeShortlist(contexts,2).join(' … ') });
   });
   found.sort((a,b)=>b.s-a.s);
   return found.slice(0,6);
 }
+
+/* ---------- events + watchlist ---------- */
 
 const EVENT_CATEGORIES = [
   { cat:'Fed', res:[/\bfed\b/i,/\bfomc\b/i,/\bfederal\s+reserve\b/i,/\bpowell\b/i,/\brate\s+(?:decision|hike|cut)\b/i] },
@@ -921,10 +978,15 @@ const EVENT_CATEGORIES = [
   { cat:'Trade', res:[/\btariff\b/i,/\btrade\s+deal\b/i,/\btrade\s+war\b/i] },
   { cat:'Data', res:[/\bgdp\b/i,/\bretail\s+sales\b/i,/\bpmi\b/i,/\bism\b/i,/\bhousing\s+starts\b/i,/\bbuilding\s+permits\b/i,/\bconsumer\s+confidence\b/i,/\bindustrial\s+production\b/i] },
 ];
+
 const TIME_RE = /\b\d{1,2}:\d{2}\s?(?:AM|PM|am|pm)?(?:\s?(?:ET|EST|EDT|GMT|UTC|IST))?\b/;
 const RELATIVE_TIME = /\b(overnight|pre-market|after[\s-]close|after[\s-]hours|before the bell|at the open|at the close|this morning|this afternoon|tonight|today|yesterday|tomorrow|all day)\b/i;
 const HIGH_IMPORTANCE = /\b(critical|crucial|key|major|significant|closely watched|pivotal|decisive|historic|landmark)\b/i;
 const PAST_TENSE = /\b(released|reported|showed|came in|printed|posted|rose to|fell to|held at|announced|said|confirmed|slipped|extended|rallied|climbed|fell|eased|cooled)\b/i;
+const MONTH_DATE_RE = /\b(?:jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:t(?:ember)?)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)\.?\s+\d{1,2}(?:st|nd|rd|th)?(?:,?\s*\d{4})?\b/i;
+const NUMERIC_DATE_RE = /\b\d{1,2}\/\d{1,2}(?:\/\d{2,4})?\b/;
+const WEEKDAY_RE = /\b(monday|tuesday|wednesday|thursday|friday|saturday|sunday)\b/i;
+const OTHER_DAY_WORDS = /\btomorrow\b|\byesterday\b|\bnext\s+week\b|\blast\s+week\b|\bmonday\b|\btuesday\b|\bwednesday\b|\bthursday\b|\bfriday\b|\bsaturday\b|\bsunday\b/i;
 
 function categorize(sentence){
   for(const c of EVENT_CATEGORIES){ if(c.res.some(re=>re.test(sentence))) return c.cat; }
@@ -937,9 +999,23 @@ function findTime(sentence){
   if(r) return r[0].replace(/^\w/,c=>c.toUpperCase());
   return '';
 }
+// date is genuinely optional data — returns '' (rendered as a dash) rather
+// than guessing when the text doesn't state one
+function findDate(sentence){
+  const m = MONTH_DATE_RE.exec(sentence);
+  if(m) return m[0].replace(/^\w/,c=>c.toUpperCase());
+  const nd = NUMERIC_DATE_RE.exec(sentence);
+  if(nd) return nd[0];
+  if(/\btoday\b/i.test(sentence)) return 'Today';
+  if(/\btomorrow\b/i.test(sentence)) return 'Tomorrow';
+  if(/\byesterday\b/i.test(sentence)) return 'Yesterday';
+  const w = WEEKDAY_RE.exec(sentence);
+  if(w) return w[0].replace(/^\w/,c=>c.toUpperCase());
+  return '';
+}
 function findAssetsIn(sentence){
   const set = new Set();
-  LOCAL_ASSET_IDS.forEach(id=>{ if(findKeywordOccurrences(sentence, ASSET_ALIASES[id]).length) set.add(assetLabel(id)); });
+  LOCAL_ASSET_IDS.forEach(id=>{ if(findKeywordOccurrences(sentence, ASSET_ALIASES[id]).length) set.add(assetLabelFor(id)); });
   if(/\bdxy\b|\bdollar\b/i.test(sentence)) set.add('DXY');
   if(/\bwti\b/i.test(sentence)) set.add('WTI');
   if(/\bbrent\b/i.test(sentence)) set.add('Brent');
@@ -954,6 +1030,15 @@ function scoreSentence(sentence){
   if(TIME_RE.test(sentence) || RELATIVE_TIME.test(sentence)) score++;
   return score;
 }
+// bare "today" language, or a bare clock time with no OTHER day mentioned
+// nearby (briefing-style text overwhelmingly means "later today" in that case)
+function isTodayCandidate(sentence){
+  if(/\btoday\b/i.test(sentence)) return true;
+  if(/\bthis\s+(?:morning|afternoon|evening)\b|\btonight\b/i.test(sentence)) return true;
+  if(TIME_RE.test(sentence) && !OTHER_DAY_WORDS.test(sentence)) return true;
+  return false;
+}
+
 function splitSentences(protectedText){
   const lines = protectedText.split(/\n+/);
   const sentences = [];
@@ -968,39 +1053,110 @@ function splitSentences(protectedText){
   });
   return sentences;
 }
+
 function extractEventsAndWatchlist(sentences){
-  const scored = sentences.map(s=>({ s, score:scoreSentence(s) })).filter(x=>x.score>=2);
+  const scored = sentences.map(s=>({ s, score:scoreSentence(s) }));
   scored.sort((a,b)=>b.score-a.score);
   const events=[], watchlist=[];
   const seenHeadlines = new Set();
-  for(const {s} of scored){
+  for(const {s, score} of scored){
     const key = s.toLowerCase().slice(0,40);
     if(seenHeadlines.has(key)) continue;
     seenHeadlines.add(key);
     const isFuture = FUTURE_WORDS.test(s) && !PAST_TENSE.test(s);
     const cat = categorize(s);
     const t = findTime(s);
+    const dt = findDate(s);
     const aa = findAssetsIn(s);
-    // strip clock-times before scanning for a forecast number, so "2:00 PM"
-    // or an index name like "S&P 500" never gets mistaken for a data figure
     const sForNums = s.replace(TIME_RE, ' ');
     const nums = extractNumberTokens(sForNums);
     const {cons} = classifyNumbers(sForNums, nums);
     if(isFuture){
-      if(watchlist.length>=8) continue;
-      watchlist.push({ t, e:trimToWords(s,12), f:cons||'', imp: HIGH_IMPORTANCE.test(s)||cat==='Fed'||cat==='Inflation' ? 'High' : (aa? 'Medium':'Low'), aa });
+      if(score<2 || watchlist.length>=8) continue;
+      watchlist.push({ t, dt, e:trimToWords(s,12), f:cons||'', imp: HIGH_IMPORTANCE.test(s)||cat==='Fed'||cat==='Inflation' ? 'High' : (aa? 'Medium':'Low'), aa, src:s });
     } else {
-      if(events.length>=6) continue;
+      // Market Moving Events gets a slightly higher bar than the watchlist so
+      // this list stays genuinely "market moving" rather than just asset-adjacent.
+      if(score<3 || events.length>=6) continue;
       let why = '';
       const connM = /\b(?:which|since|because)\s+([^.]{6,90})/i.exec(protectText(s));
       if(connM) why = trimToWords(unprotectText(connM[1]),14);
-      events.push({ cat: cat||'General', t, h: trimToWords(s,12), w:why, aa, imp: HIGH_IMPORTANCE.test(s)||cat==='Fed'||cat==='Inflation' ? 'High' : (aa && aa.split(',').length>=2 ? 'Medium':'Low') });
+      events.push({ cat: cat||'General', t, dt, h: trimToWords(s,12), w:why, aa, imp: HIGH_IMPORTANCE.test(s)||cat==='Fed'||cat==='Inflation' ? 'High' : (aa && aa.split(',').length>=2 ? 'Medium':'Low'), src:s });
     }
   }
   return { events, watchlist };
 }
 
+/* ---------- today's focus — dual-scenario impact templates ----------
+   These describe standard, textbook market relationships for each event
+   category (the kind taught in any trading-education context) — framed
+   as general tendencies ("typically"), never as a prediction of which way
+   a specific release will actually go. */
+const IMPACT_TEMPLATES = {
+  'Fed':          { up:'A hawkish surprise (hold/hike, firmer tone) tends to pressure gold, equities and Bitcoin while lifting the dollar and yields.',
+                     down:'A dovish surprise (cut, softer tone, weak data) tends to lift gold, equities and Bitcoin while pressuring the dollar and yields.' },
+  'Central Bank': { up:'A hawkish lean (hold/hike, inflation concern) typically supports the domestic currency but can pressure local equities.',
+                     down:'A dovish lean (cut, easing bias) typically supports local equities and pressures the domestic currency.' },
+  'Inflation':    { up:'A hotter-than-expected print raises the odds of a hawkish policy response — typically bearish for gold, bonds and equities, bullish for the dollar.',
+                     down:'A cooler-than-expected print is read as disinflationary — typically bullish for gold, bonds and equities, bearish for the dollar.' },
+  'Employment':   { up:'A stronger print (beats expectations) reduces rate-cut odds — typically bullish for the dollar, bearish for gold and bonds.',
+                     down:'A weaker print (misses expectations) raises rate-cut odds — typically bullish for gold and bonds, bearish for the dollar.' },
+  'Rates':        { up:'Rising yields typically pressure gold and growth-sensitive equities while supporting the dollar.',
+                     down:'Falling yields typically support gold and growth-sensitive equities while pressuring the dollar.' },
+  'Geopolitics':  { up:'Escalation typically drives flows into havens (gold, dollar, bonds) and pressures risk assets.',
+                     down:'De-escalation typically supports risk assets and eases demand for traditional havens.' },
+  'Energy':       { up:'A supply-tightening outcome (cuts, disruption, inventory draw) tends to lift crude and stoke inflation expectations.',
+                     down:'A supply-friendly outcome (output increase, inventory build) tends to pressure crude and ease inflation expectations.' },
+  'Earnings':     { up:'A beat-and-raise outcome typically lifts the stock and can lift sentiment across its broader sector.',
+                     down:'A miss or guidance cut typically pressures the stock and can weigh on sentiment across its broader sector.' },
+  'Trade':        { up:'An escalatory outcome (new tariffs, deal collapse) typically pressures risk assets and trade-exposed currencies.',
+                     down:'A de-escalatory outcome (deal reached, tariffs eased) typically supports risk assets and trade-exposed currencies.' },
+  'Data':         { up:'A stronger-than-expected print typically supports the currency and growth-sensitive assets.',
+                     down:'A weaker-than-expected print typically pressures the currency and growth-sensitive assets, raising the odds of policy support.' },
+};
+const DEFAULT_IMPACT = {
+  up:'A stronger or more hawkish outcome than expected would typically be read as risk-negative for gold, bonds and growth-sensitive assets, and risk-positive for the dollar.',
+  down:'A weaker or more dovish outcome than expected would typically be read as risk-positive for gold, bonds and growth-sensitive assets, and risk-negative for the dollar.'
+};
+function extractTodayFocus(sentences){
+  const scored = sentences.map(s=>({s, score:scoreSentence(s)})).filter(x=>x.score>=2 && isTodayCandidate(x.s));
+  scored.sort((a,b)=>b.score-a.score);
+  const out = [];
+  const seen = new Set();
+  for(const {s} of scored){
+    const key = s.toLowerCase().slice(0,40);
+    if(seen.has(key)) continue;
+    seen.add(key);
+    if(out.length>=5) break;
+    const cat = categorize(s) || 'General';
+    const t = findTime(s) || 'Today';
+    const aa = findAssetsIn(s);
+    const tmpl = IMPACT_TEMPLATES[cat] || DEFAULT_IMPACT;
+    out.push({ cat, t, title:trimToWords(s,12), aa, up:tmpl.up, down:tmpl.down, src:s });
+  }
+  return out;
+}
+
+/* ---------- session summary ---------- */
+function generateSummaryBullets(sentences){
+  const scored = sentences.map(s=>({s, score:scoreSentence(s)})).filter(x=>x.score>=1);
+  scored.sort((a,b)=>b.score-a.score);
+  const out = [];
+  const seen = new Set();
+  for(const {s} of scored){
+    const key = s.toLowerCase().slice(0,40);
+    if(seen.has(key)) continue;
+    seen.add(key);
+    out.push(trimToWords(s, 24));
+    if(out.length>=8) break;
+  }
+  return out;
+}
+
+/* ---------- meta ---------- */
+
 const KNOWN_SOURCES = ['Reuters','Bloomberg','CNBC','Wall Street Journal','WSJ','Financial Times','FT','MarketWatch',"Barron's",'Business Standard','Economic Times','Mint','Moneycontrol','Zerohedge','Investing.com','Trading Economics','Associated Press','AP'];
+
 function extractMeta(text, sentences){
   let source='';
   for(const s of KNOWN_SOURCES){
@@ -1013,6 +1169,7 @@ function extractMeta(text, sentences){
   let session='';
   const sessionMatch = /\b(US session|Asian session|European session|London session|pre-market|after[\s-]hours|overnight session)\b/i.exec(text);
   if(sessionMatch) session = sessionMatch[0].replace(/^\w/,c=>c.toUpperCase());
+
   let headline='';
   if(sentences.length){
     let best='', bestScore=0;
@@ -1022,17 +1179,21 @@ function extractMeta(text, sentences){
   return {source, session, headline};
 }
 
+/* ---------- top level ---------- */
+
 function extractIntelligenceLocal(rawText){
   const normalized = rawText.replace(/\r\n/g,'\n').replace(/[\u201c\u201d]/g,'"').replace(/[\u2018\u2019]/g,"'").replace(/[\u2013\u2014]/g,'-').replace(/\u00A0/g,' ');
   const protectedText = protectText(normalized);
   const sentences = splitSentences(protectedText);
   const macro = extractMacro(protectedText);
-  const assets = extractAssets(protectedText);
+  const assets = extractAssets(protectedText, LOCAL_ASSET_IDS);
   const pos = extractPositioning(protectedText, macro, assets);
   const { events, watchlist } = extractEventsAndWatchlist(sentences);
   const narratives = extractNarratives(protectedText);
+  const today = extractTodayFocus(sentences);
+  const summaryBullets = generateSummaryBullets(sentences);
   const meta = extractMeta(normalized, sentences);
-  return { meta, macro, bias:assets.bias, matrix:assets.matrix, pos, events, narratives, watchlist };
+  return { meta, macro, bias:assets.bias, matrix:assets.matrix, pos, events, narratives, watchlist, today, summary:{bullets:summaryBullets} };
 }
 
 /* ============================================================
@@ -1062,13 +1223,17 @@ function mergeWithPrevious(fresh, previousDataset){
   const pos = POS_DEFS.map(p=>{
     const f = fresh.pos.find(x=>x.id===p.id);
     if(f && f.v){ foundCount++; return f; }
-    return base.pos.find(x=>x.id===p.id) || {id:p.id, label:p.label, v:'', tone:'none'};
+    return base.pos.find(x=>x.id===p.id) || {id:p.id, label:p.label, v:'', tone:'none', src:''};
   });
 
   const events = fresh.events.length ? fresh.events : base.events;
   const narratives = fresh.narratives.length ? fresh.narratives : base.narratives;
   const watchlist = fresh.watchlist.length ? fresh.watchlist : base.watchlist;
-  foundCount += fresh.events.length + fresh.narratives.length + fresh.watchlist.length;
+  const today = fresh.today.length ? fresh.today : base.today;
+  // a thin follow-up paste (1 stray bullet) shouldn't wipe out a substantial
+  // prior recap — but a first-ever paste should still populate it either way
+  const summary = (fresh.summary.bullets.length >= 2 || base.summary.bullets.length === 0) ? fresh.summary : base.summary;
+  foundCount += fresh.events.length + fresh.narratives.length + fresh.watchlist.length + fresh.today.length + fresh.summary.bullets.length;
 
   const meta = {
     source: fresh.meta.source || base.meta.source,
@@ -1079,7 +1244,7 @@ function mergeWithPrevious(fresh, previousDataset){
   if(fresh.meta.session) foundCount++;
   if(fresh.meta.headline) foundCount++;
 
-  return { data:{meta,macro,bias,matrix,pos,events,narratives,watchlist}, foundCount };
+  return { data:{meta,macro,bias,matrix,pos,events,narratives,watchlist,today,summary}, foundCount };
 }
 
 /* ============================================================
@@ -1105,64 +1270,94 @@ async function loadPersisted(){
 const SAMPLE_DATASET = normalizeDataset({
   meta:{ source:'Sample Dataset', session:'US Session Close', headline:'Fed pivot bets firm up; gold pushes higher as the dollar softens' },
   macro:{
-    fed:{cur:'5.50%',prev:'5.50%',cons:'5.50%',d:'flat',note:'Held at cycle high'},
-    cpiH:{cur:'3.2%',prev:'3.4%',cons:'3.3%',d:'down',note:'Third straight cooling print'},
-    cpiC:{cur:'3.6%',prev:'3.8%',cons:'3.7%',d:'down',note:'Shelter costs finally easing'},
-    ppiH:{cur:'2.3%',prev:'2.5%',cons:'2.4%',d:'down',note:'Goods deflation persists'},
-    ppiC:{cur:'2.8%',prev:'2.9%',cons:'2.9%',d:'down',note:'In line, muted pipeline pressure'},
-    real:{cur:'1.90%',prev:'2.10%',cons:'',d:'down',note:'Falling as inflation cools'},
-    y2:{cur:'4.28%',prev:'4.41%',cons:'',d:'down',note:'Pricing faster 2026 cuts'},
-    y10:{cur:'4.02%',prev:'4.11%',cons:'',d:'down',note:'Curve bull-steepening'},
-    dxy:{cur:'103.4',prev:'104.6',cons:'',d:'down',note:'Broad dollar weakness'},
-    wti:{cur:'$78.20',prev:'$79.85',cons:'',d:'down',note:'Demand concerns weigh'},
-    brent:{cur:'$82.40',prev:'$83.90',cons:'',d:'down',note:'Tracking WTI lower'},
-    vix:{cur:'14.2',prev:'15.6',cons:'',d:'down',note:'Vol compressed into close'},
+    fed:{cur:'5.50%',prev:'5.50%',cons:'5.50%',d:'flat',note:'Held at cycle high',src:'The Fed funds rate was left unchanged at 5.50% for a third straight meeting, matching consensus.'},
+    cpiH:{cur:'3.2%',prev:'3.4%',cons:'3.3%',d:'down',note:'Third straight cooling print',src:'Headline CPI cooled to 3.2% y/y in September, below the 3.3% consensus estimate and down from 3.4% in August — the third straight month of disinflation.'},
+    cpiC:{cur:'3.6%',prev:'3.8%',cons:'3.7%',d:'down',note:'Shelter costs finally easing',src:'Core CPI, which strips out food and energy, eased to 3.6% from 3.8% prior as shelter costs finally began to soften.'},
+    ppiH:{cur:'2.3%',prev:'2.5%',cons:'2.4%',d:'down',note:'Goods deflation persists',src:'Headline PPI slowed to 2.3% y/y from 2.5%, with goods prices continuing to deflate.'},
+    ppiC:{cur:'2.8%',prev:'2.9%',cons:'2.9%',d:'down',note:'In line, muted pipeline pressure',src:'Core PPI came in at 2.8%, roughly in line with the 2.9% prior reading and showing muted pipeline price pressure.'},
+    real:{cur:'1.90%',prev:'2.10%',cons:'',d:'down',note:'Falling as inflation cools',src:'Real yields fell to 1.90% from 2.10% as inflation expectations continued to cool.'},
+    y2:{cur:'4.28%',prev:'4.41%',cons:'',d:'down',note:'Pricing faster 2026 cuts',src:'The 2-year Treasury yield slid to 4.28% from 4.41% as traders priced in a faster pace of 2026 rate cuts.'},
+    y10:{cur:'4.02%',prev:'4.11%',cons:'',d:'down',note:'Curve bull-steepening',src:'The 10-year yield dropped to 4.02% from 4.11%, extending the curve\u2019s bull-steepening move.'},
+    dxy:{cur:'103.4',prev:'104.6',cons:'',d:'down',note:'Broad dollar weakness',src:'The dollar index (DXY) slipped to 103.4 from 104.6, its lowest level in three months, on broad dollar weakness.'},
+    wti:{cur:'$78.20',prev:'$79.85',cons:'',d:'down',note:'Demand concerns weigh',src:'WTI crude slipped to $78.20 a barrel from $79.85 as demand concerns offset OPEC+ supply discipline.'},
+    brent:{cur:'$82.40',prev:'$83.90',cons:'',d:'down',note:'Tracking WTI lower',src:'Brent crude eased to $82.40 from $83.90, broadly tracking WTI lower.'},
+    vix:{cur:'14.2',prev:'15.6',cons:'',d:'down',note:'Vol compressed into close',src:'The VIX compressed to 14.2 from 15.6 into the close as equity volatility eased.'},
   },
   bias:{
-    gold:{b:'Bullish',cf:82,pd:'Real yields falling, dollar soft',br:'Hawkish FOMC surprise',nc:'FOMC minutes Wednesday'},
-    nifty:{b:'Bullish',cf:64,pd:'FII inflows resume on rate-cut bets',br:'Crude spike, FX pressure',nc:'RBI policy next week'},
-    usEq:{b:'Neutral',cf:55,pd:'Soft-landing narrative intact',br:'Stretched valuations into earnings',nc:'Mega-cap earnings this week'},
-    usBonds:{b:'Bullish',cf:70,pd:'Cooling inflation supports duration',br:'Heavy refunding supply',nc:'10Y auction Thursday'},
-    btc:{b:'Neutral',cf:48,pd:'Risk appetite steady',br:'ETF flow deceleration',nc:'Options expiry Friday'},
+    gold:{b:'Bullish',cf:82,pd:'Real yields falling, dollar soft',br:'Hawkish FOMC surprise',nc:'FOMC minutes Wednesday',src:'Gold rallied to fresh multi-week highs, buoyed by falling real yields and a softer dollar, with analysts noting continued central bank buying providing an additional tailwind.'},
+    nifty:{b:'Bullish',cf:64,pd:'FII inflows resume on rate-cut bets',br:'Crude spike, FX pressure',nc:'RBI policy next week',src:'Nifty 50 extended its rally as foreign institutional investors resumed buying on rate-cut bets, though a recent spike in crude oil prices poses a risk to the currency.'},
+    usEq:{b:'Neutral',cf:55,pd:'Soft-landing narrative intact',br:'Stretched valuations into earnings',nc:'Mega-cap earnings this week',src:'US equities were little changed as investors weighed the soft-landing narrative against stretched valuations ahead of a heavy week of mega-cap earnings.'},
+    usBonds:{b:'Bullish',cf:70,pd:'Cooling inflation supports duration',br:'Heavy refunding supply',nc:'10Y auction Thursday',src:'Treasury yields fell sharply as cooling inflation data supported duration, though a heavy refunding calendar remains a swing factor into Thursday\u2019s auction.'},
+    btc:{b:'Neutral',cf:48,pd:'Risk appetite steady',br:'ETF flow deceleration',nc:'Options expiry Friday',src:'Bitcoin held steady near recent levels, with risk appetite broadly improving but ETF inflows decelerating into Friday\u2019s options expiry.'},
   },
   matrix:{
-    gold:{bd:'Falling real yields, weak dollar, CB buying',brd:'Hawkish Fed surprise, risk-on unwind',cd:'Real rates',b:'Bullish',cf:82},
-    nifty:{bd:'FII inflows, rate-cut bets, earnings beats',brd:'Crude spike, FX pressure',cd:'Global rate path',b:'Bullish',cf:64},
-    usEq:{bd:'Soft landing, resilient earnings',brd:'Valuation stretch, sticky core inflation',cd:'Earnings season',b:'Neutral',cf:55},
-    usBonds:{bd:'Disinflation, cooling labor market',brd:'Heavy issuance, term premium',cd:'Inflation trajectory',b:'Bullish',cf:70},
-    btc:{bd:'ETF demand, risk-on flows',brd:'Profit-taking, macro deleveraging',cd:'Risk sentiment',b:'Neutral',cf:48},
+    gold:{bd:'Falling real yields, weak dollar, CB buying',brd:'Hawkish Fed surprise, risk-on unwind',cd:'Real rates',b:'Bullish',cf:82,src:'Gold rallied to fresh multi-week highs, buoyed by falling real yields and a softer dollar, with analysts noting continued central bank buying providing an additional tailwind.'},
+    nifty:{bd:'FII inflows, rate-cut bets, earnings beats',brd:'Crude spike, FX pressure',cd:'Global rate path',b:'Bullish',cf:64,src:'Nifty 50 extended its rally as foreign institutional investors resumed buying on rate-cut bets, though a recent spike in crude oil prices poses a risk to the currency.'},
+    usEq:{bd:'Soft landing, resilient earnings',brd:'Valuation stretch, sticky core inflation',cd:'Earnings season',b:'Neutral',cf:55,src:'US equities were little changed as investors weighed the soft-landing narrative against stretched valuations ahead of a heavy week of mega-cap earnings.'},
+    usBonds:{bd:'Disinflation, cooling labor market',brd:'Heavy issuance, term premium',cd:'Inflation trajectory',b:'Bullish',cf:70,src:'Treasury yields fell sharply as cooling inflation data supported duration, though a heavy refunding calendar remains a swing factor into Thursday\u2019s auction.'},
+    btc:{bd:'ETF demand, risk-on flows',brd:'Profit-taking, macro deleveraging',cd:'Risk sentiment',b:'Neutral',cf:48,src:'Bitcoin held steady near recent levels, with risk appetite broadly improving but ETF inflows decelerating into Friday\u2019s options expiry.'},
   },
   pos:{
-    risk:{v:'Risk-On',tone:'bullish'}, inflation:{v:'Cooling',tone:'bullish'}, growth:{v:'Resilient',tone:'neutral'},
-    liquidity:{v:'Ample',tone:'bullish'}, fed:{v:'Leaning Dovish',tone:'bullish'}, dollar:{v:'Softening',tone:'bearish'},
-    bond:{v:'Yields Falling',tone:'bullish'}, gold:{v:'Accumulating',tone:'bullish'},
+    risk:{v:'Risk-On',tone:'bullish',src:'Risk appetite broadly improved through the session as the disinflation narrative gained steam.'},
+    inflation:{v:'Cooling',tone:'bullish',src:'Headline CPI cooled to 3.2% y/y in September, the third straight month of disinflation.'},
+    growth:{v:'Resilient',tone:'neutral',src:'Growth data remained resilient even as rate-cut bets firmed up, keeping the soft-landing narrative intact.'},
+    liquidity:{v:'Ample',tone:'bullish',src:'Liquidity conditions stayed ample into month-end, with little sign of funding stress.'},
+    fed:{v:'Leaning Dovish',tone:'bullish',src:'The softer print reinforces expectations that the Federal Reserve will lean dovish into its next meeting, with markets pricing in a near-term cut.'},
+    dollar:{v:'Softening',tone:'bearish',src:'The dollar index (DXY) slipped to 103.4 from 104.6, its lowest level in three months, on broad dollar weakness.'},
+    bond:{v:'Yields Falling',tone:'bullish',src:'Treasury yields fell sharply as cooling inflation data supported duration.'},
+    gold:{v:'Accumulating',tone:'bullish',src:'Gold rallied to fresh multi-week highs, buoyed by falling real yields and a softer dollar, with analysts noting continued central bank buying providing an additional tailwind.'},
   },
   events:[
-    {cat:'Fed',t:'14:00 ET',h:'FOMC minutes show growing consensus for September cut',w:'Cements market pricing for near-term easing, pressures front-end yields',aa:'DXY, US Bonds, Gold',imp:'High'},
-    {cat:'Inflation',t:'08:30 ET',h:'Core CPI cools to 3.6% y/y, third straight decline',w:'Reinforces disinflation trend, supports duration and gold',aa:'US Bonds, Gold, US Equities',imp:'High'},
-    {cat:'Central Bank',t:'Overnight',h:'RBI holds rates, signals data-dependent stance into festive season',w:'Keeps INR carry attractive, supports Nifty flows',aa:'Nifty',imp:'Medium'},
-    {cat:'Energy',t:'Overnight',h:'OPEC+ reaffirms voluntary cuts through Q1',w:'Caps downside in crude despite demand worries',aa:'WTI, Brent',imp:'Medium'},
-    {cat:'Geopolitics',t:'Overnight',h:'Middle East shipping disruptions ease as talks progress',w:'Reduces risk premium in oil and safe-haven flows',aa:'Gold, WTI, Brent',imp:'Medium'},
-    {cat:'Earnings',t:'After Close',h:'Mega-cap tech beats on cloud revenue, guidance cautious',w:'Sets tone for index-level earnings reaction this week',aa:'US Equities',imp:'Low'},
+    {cat:'Fed',t:'14:00 ET',dt:'Today',h:'FOMC minutes show growing consensus for September cut',w:'Cements market pricing for near-term easing, pressures front-end yields',aa:'DXY, US Bonds, Gold',imp:'High',src:'FOMC minutes released this afternoon showed a growing consensus among committee members for a September rate cut, cementing market pricing for near-term easing and pressuring front-end yields lower.'},
+    {cat:'Inflation',t:'08:30 ET',dt:'Today',h:'Core CPI cools to 3.6% y/y, third straight decline',w:'Reinforces disinflation trend, supports duration and gold',aa:'US Bonds, Gold, US Equities',imp:'High',src:'Core CPI cooled to 3.6% y/y this morning, the third straight monthly decline, reinforcing the broader disinflation trend and supporting both duration and gold.'},
+    {cat:'Central Bank',t:'Overnight',dt:'',h:'RBI holds rates, signals data-dependent stance into festive season',w:'Keeps INR carry attractive, supports Nifty flows',aa:'Nifty',imp:'Medium',src:'The RBI held its policy rate steady overnight and signaled a data-dependent stance heading into the festive season, keeping the INR carry trade attractive and supporting continued Nifty inflows.'},
+    {cat:'Energy',t:'Overnight',dt:'',h:'OPEC+ reaffirms voluntary cuts through Q1',w:'Caps downside in crude despite demand worries',aa:'WTI, Brent',imp:'Medium',src:'OPEC+ reaffirmed its voluntary production cuts through the first quarter overnight, capping downside in crude despite lingering demand worries.'},
+    {cat:'Geopolitics',t:'Overnight',dt:'',h:'Middle East shipping disruptions ease as talks progress',w:'Reduces risk premium in oil and safe-haven flows',aa:'Gold, WTI, Brent',imp:'Medium',src:'Shipping disruptions in the Middle East eased overnight as diplomatic talks progressed, reducing the risk premium built into both oil and safe-haven flows.'},
+    {cat:'Earnings',t:'After Close',dt:'Today',h:'Mega-cap tech beats on cloud revenue, guidance cautious',w:'Sets tone for index-level earnings reaction this week',aa:'US Equities',imp:'Low',src:'A mega-cap tech name beat expectations on cloud revenue after the close, though cautious forward guidance is likely to set the tone for index-level earnings reaction this week.'},
   ],
   narratives:[
-    {n:'Fed Pivot',tone:'bullish',s:80,aa:'Gold, US Bonds, US Equities'},
-    {n:'Inflation Cooling',tone:'bullish',s:75,aa:'US Bonds, Gold'},
-    {n:'Dollar Weakness',tone:'bearish',s:68,aa:'Gold, Nifty, Bitcoin'},
-    {n:'Risk-On Rotation',tone:'bullish',s:60,aa:'US Equities, Bitcoin, Nifty'},
-    {n:'Oil Supply Discipline',tone:'neutral',s:45,aa:'WTI, Brent'},
-    {n:'Treasury Supply Overhang',tone:'warning',s:40,aa:'US Bonds'},
+    {n:'Fed Pivot',tone:'bullish',s:80,aa:'Gold, US Bonds, US Equities',src:'The softer inflation print reinforces expectations that the Federal Reserve will pivot toward rate cuts at its next meeting, with markets now pricing this in with near certainty.'},
+    {n:'Inflation Cooling',tone:'bullish',s:75,aa:'US Bonds, Gold',src:'Headline CPI cooling to 3.2% y/y marks the third straight month of disinflation, with core measures showing a similar trend.'},
+    {n:'Dollar Weakness',tone:'bearish',s:68,aa:'Gold, Nifty, Bitcoin',src:'The dollar index slipped to a three-month low as the disinflation and rate-cut narrative gained steam, providing a tailwind to gold, EM equities and crypto.'},
+    {n:'Risk-On Rotation',tone:'bullish',s:60,aa:'US Equities, Bitcoin, Nifty',src:'Risk appetite broadly improved through the session, with flows rotating back into equities and crypto as recession fears continued to fade.'},
+    {n:'Supply Discipline',tone:'neutral',s:45,aa:'WTI, Brent',src:'OPEC+ reaffirmed voluntary production cuts through the first quarter, capping downside in crude despite ongoing demand-side worries.'},
+    {n:'Yield Curve Steepening',tone:'neutral',s:40,aa:'US Bonds',src:'The Treasury curve continued its bull-steepening move as front-end yields fell faster than the long end on rate-cut repricing.'},
   ],
   watchlist:[
-    {t:'08:30 ET',e:'US PCE Price Index (Sep)',f:'2.4% y/y',imp:'High',aa:'DXY, US Bonds, Gold'},
-    {t:'10:00 ET',e:'Consumer Confidence',f:'104.5',imp:'Medium',aa:'US Equities'},
-    {t:'14:00 ET',e:'FOMC Rate Decision',f:'Hold, 5.50%',imp:'High',aa:'DXY, US Bonds, Gold, US Equities'},
-    {t:'Pre-Market IN',e:'India Industrial Production (Aug)',f:'5.8% y/y',imp:'Medium',aa:'Nifty'},
-    {t:'Overnight',e:'China Manufacturing PMI',f:'50.2',imp:'Medium',aa:'Nifty, WTI, Brent'},
-    {t:'10:30 ET',e:'EIA Crude Inventories',f:'-1.8M bbl',imp:'Low',aa:'WTI, Brent'},
-    {t:'All Day',e:'US Treasury 7Y Auction',f:'',imp:'Medium',aa:'US Bonds'},
-    {t:'After Close',e:'Mega-cap Q3 Earnings (multiple)',f:'',imp:'High',aa:'US Equities, Bitcoin'},
+    {t:'08:30 ET',dt:'Tomorrow',e:'US PCE Price Index (Sep)',f:'2.4% y/y',imp:'High',aa:'DXY, US Bonds, Gold',src:'Traders are awaiting tomorrow\u2019s US PCE price index, the Fed\u2019s preferred inflation gauge, expected to show 2.4% year-over-year.'},
+    {t:'10:00 ET',dt:'Tomorrow',e:'Consumer Confidence',f:'104.5',imp:'Medium',aa:'US Equities',src:'Consumer confidence data is due tomorrow morning, with consensus looking for a reading around 104.5.'},
+    {t:'14:00 ET',dt:'Wednesday',e:'FOMC Rate Decision',f:'Hold, 5.50%',imp:'High',aa:'DXY, US Bonds, Gold, US Equities',src:'The FOMC rate decision is scheduled for Wednesday afternoon, with markets broadly expecting a hold at 5.50% alongside dovish forward guidance.'},
+    {t:'Pre-Market IN',dt:'',e:'India Industrial Production (Aug)',f:'5.8% y/y',imp:'Medium',aa:'Nifty',src:'India industrial production data for August is due in pre-market trade, with economists forecasting growth of around 5.8% y/y.'},
+    {t:'Overnight',dt:'',e:'China Manufacturing PMI',f:'50.2',imp:'Medium',aa:'Nifty, WTI, Brent',src:'China\u2019s manufacturing PMI is due overnight, with a print near 50.2 expected to provide a modest tailwind for risk sentiment across Asia.'},
+    {t:'10:30 ET',dt:'Tomorrow',e:'EIA Crude Inventories',f:'-1.8M bbl',imp:'Low',aa:'WTI, Brent',src:'EIA crude inventory data lands tomorrow mid-morning, with a draw of roughly 1.8 million barrels expected.'},
+    {t:'All Day',dt:'Thursday',e:'US Treasury 7Y Auction',f:'',imp:'Medium',aa:'US Bonds',src:'A 7-year Treasury auction is scheduled for Thursday, with demand metrics likely to influence the term-premium debate.'},
+    {t:'After Close',dt:'This Week',e:'Mega-cap Q3 Earnings (multiple)',f:'',imp:'High',aa:'US Equities, Bitcoin',src:'Several mega-cap names report Q3 earnings after the close later this week, a key swing factor for index-level direction.'},
   ],
+  today:[
+    {cat:'Fed',t:'14:00 ET',title:'FOMC minutes release could reshape September cut odds',aa:'DXY, US Bonds, Gold',
+      up:'A hawkish surprise (hold/hike, firmer tone) tends to pressure gold, equities and Bitcoin while lifting the dollar and yields.',
+      down:'A dovish surprise (cut, softer tone, weak data) tends to lift gold, equities and Bitcoin while pressuring the dollar and yields.',
+      src:'FOMC minutes released this afternoon showed a growing consensus among committee members for a September rate cut, cementing market pricing for near-term easing.'},
+    {cat:'Inflation',t:'08:30 ET',title:'Core CPI print lands this morning, third straight cooling read expected',aa:'US Bonds, Gold, US Equities',
+      up:'A hotter-than-expected print raises the odds of a hawkish policy response — typically bearish for gold, bonds and equities, bullish for the dollar.',
+      down:'A cooler-than-expected print is read as disinflationary — typically bullish for gold, bonds and equities, bearish for the dollar.',
+      src:'Core CPI cooled to 3.6% y/y this morning, the third straight monthly decline, reinforcing the broader disinflation trend.'},
+    {cat:'Earnings',t:'After Close',title:'Mega-cap tech reports after today\u2019s close, guidance in focus',aa:'US Equities',
+      up:'A beat-and-raise outcome typically lifts the stock and can lift sentiment across its broader sector.',
+      down:'A miss or guidance cut typically pressures the stock and can weigh on sentiment across its broader sector.',
+      src:'A mega-cap tech name beat expectations on cloud revenue after the close, though cautious forward guidance is likely to set the tone for index-level earnings reaction this week.'},
+  ],
+  summary:{
+    bullets:[
+      'Headline and core CPI both cooled for a third straight month, reinforcing the broader disinflation trend and firming up bets on a near-term Fed cut.',
+      'The Fed funds rate was held at 5.50% as expected, but FOMC minutes showed growing internal consensus for a September cut.',
+      '2-year and 10-year Treasury yields both fell as traders priced in a faster 2026 easing path, extending the curve\u2019s bull-steepening move.',
+      'The dollar index slipped to a three-month low, providing a tailwind to gold, Nifty and Bitcoin.',
+      'Gold rallied to fresh multi-week highs on falling real yields, a softer dollar and continued central bank buying.',
+      'US equities were little changed as investors weighed the soft-landing narrative against stretched valuations ahead of a heavy week of mega-cap earnings.',
+      'OPEC+ reaffirmed voluntary supply cuts through Q1, capping downside in crude despite demand-side concerns.',
+    ],
+  },
 });
 /* ============================================================
    SMALL FORMATTERS
