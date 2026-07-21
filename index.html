@@ -1,1509 +1,383 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Ashford Capital — Market Intelligence Terminal</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
-<style>
-/* ============================================================
-   DESIGN TOKENS
-   ============================================================ */
-:root{
-  --bg:            #0B0F14;
-  --bg-inset:      #080B0F;
-  --card:          #141A22;
-  --card-raised:   #171E27;
-  --border:        #252D38;
-  --border-soft:   #1B222C;
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ashford Capital | Market Intelligence Terminal</title>
+    <style>
+        /* --- Global & Institutional Theme --- */
+        :root {
+            --bg-color: #0d0d0d;
+            --panel-bg: #1e1e1e;
+            --border-color: #333;
+            --text-main: #e0e0e0;
+            --text-muted: #888;
+            --accent-blue: #007acc;
+            --accent-hover: rgba(255, 255, 255, 0.08);
+        }
 
-  --bull:          #2FBF71;
-  --bull-dim:      rgba(47,191,113,0.13);
-  --bear:          #F2453D;
-  --bear-dim:      rgba(242,69,61,0.13);
-  --neutral:       #F0A63D;
-  --neutral-dim:   rgba(240,166,61,0.13);
-  --macro:         #4380FA;
-  --macro-dim:     rgba(67,128,250,0.13);
-  --warn:          #E8C547;
-  --warn-dim:      rgba(232,197,71,0.13);
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
 
-  --text:          #EDF1F7;
-  --text-dim:      #8D96A6;
-  --text-faint:    #545D6B;
+        /* --- Header --- */
+        header {
+            background-color: var(--panel-bg);
+            border-bottom: 1px solid var(--border-color);
+            padding: 15px 30px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
 
-  --font-sans: 'IBM Plex Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-  --font-mono: 'IBM Plex Mono', 'SFMono-Regular', Consolas, monospace;
+        header h1 {
+            margin: 0;
+            font-size: 1.2rem;
+            text-transform: uppercase;
+            letter-spacing: 1.5px;
+            color: var(--accent-blue);
+        }
 
-  --radius: 2px;
-  --gap: 12px;
-}
+        .status-indicator {
+            font-size: 0.85rem;
+            color: #4caf50;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
 
-*,*::before,*::after{ box-sizing:border-box; }
-html,body{ margin:0; padding:0; }
-body{
-  background:var(--bg);
-  color:var(--text);
-  font-family:var(--font-sans);
-  font-size:13px;
-  line-height:1.45;
-  -webkit-font-smoothing:antialiased;
-}
-::selection{ background:var(--macro); color:#fff; }
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            background-color: #4caf50;
+            border-radius: 50%;
+        }
 
-@media (prefers-reduced-motion: reduce){
-  *,*::before,*::after{ animation-duration:0.001ms !important; transition-duration:0.001ms !important; }
-}
+        /* --- Main Terminal Layout --- */
+        .terminal-container {
+            display: grid;
+            grid-template-columns: 350px 1fr;
+            gap: 20px;
+            padding: 20px;
+            flex-grow: 1;
+            overflow: hidden;
+        }
 
-a{ color:var(--macro); }
-button{ font-family:inherit; }
-:focus-visible{ outline:2px solid var(--macro); outline-offset:1px; }
+        .panel {
+            background-color: var(--panel-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            overflow-y: auto;
+        }
 
-/* ============================================================
-   PRIMITIVES
-   ============================================================ */
-.mono{ font-family:var(--font-mono); }
-.eyebrow{
-  font-size:10.5px; font-weight:600; letter-spacing:0.9px; text-transform:uppercase;
-  color:var(--text-dim);
-}
-.hidden{ display:none !important; }
+        .panel h2 {
+            margin-top: 0;
+            font-size: 1.1rem;
+            border-bottom: 1px solid var(--border-color);
+            padding-bottom: 10px;
+            margin-bottom: 15px;
+            color: #fff;
+        }
 
-.pill{
-  display:inline-flex; align-items:center; gap:5px;
-  font-family:var(--font-mono); font-size:10.5px; font-weight:500; letter-spacing:0.3px;
-  padding:4px 8px; border-radius:var(--radius);
-  border:1px solid var(--border); color:var(--text-dim); background:var(--card);
-  white-space:nowrap;
-}
-.pill.pill--live{ color:var(--bull); border-color:rgba(47,191,113,0.35); background:var(--bull-dim); }
-.pill.pill--live::before{ content:''; width:6px; height:6px; border-radius:50%; background:var(--bull); box-shadow:0 0 0 2px var(--bull-dim); }
-.pill.pill--parsing{ color:var(--warn); border-color:rgba(232,197,71,0.35); background:var(--warn-dim); }
-.pill.pill--parsing::before{ content:''; width:6px; height:6px; border-radius:50%; background:var(--warn); animation:pulse 1s ease-in-out infinite; }
-.pill.pill--error{ color:var(--bear); border-color:rgba(242,69,61,0.35); background:var(--bear-dim); }
-@keyframes pulse{ 0%,100%{opacity:1;} 50%{opacity:0.35;} }
+        /* --- Input Section --- */
+        textarea {
+            width: 100%;
+            flex-grow: 1;
+            background-color: #121212;
+            border: 1px solid var(--border-color);
+            color: var(--text-main);
+            padding: 10px;
+            border-radius: 4px;
+            font-family: 'Courier New', Courier, monospace;
+            resize: none;
+            margin-bottom: 15px;
+        }
 
-.badge{
-  display:inline-block; font-family:var(--font-mono); font-size:9.5px; font-weight:600;
-  letter-spacing:0.5px; text-transform:uppercase; padding:2px 6px; border-radius:var(--radius);
-  border:1px solid transparent;
-}
-.badge[data-tone="bullish"]{ color:var(--bull); background:var(--bull-dim); border-color:rgba(47,191,113,0.3); }
-.badge[data-tone="bearish"]{ color:var(--bear); background:var(--bear-dim); border-color:rgba(242,69,61,0.3); }
-.badge[data-tone="neutral"]{ color:var(--neutral); background:var(--neutral-dim); border-color:rgba(240,166,61,0.3); }
-.badge[data-tone="macro"]{ color:var(--macro); background:var(--macro-dim); border-color:rgba(67,128,250,0.3); }
-.badge[data-tone="warning"]{ color:var(--warn); background:var(--warn-dim); border-color:rgba(232,197,71,0.3); }
-.badge[data-tone="none"]{ color:var(--text-faint); background:transparent; border-color:var(--border); }
+        textarea:focus {
+            outline: none;
+            border-color: var(--accent-blue);
+        }
 
-.badge[data-imp="High"]{ color:#0B0F14; background:var(--warn); border-color:var(--warn); }
-.badge[data-imp="Medium"]{ color:var(--warn); background:var(--warn-dim); border-color:rgba(232,197,71,0.35); }
-.badge[data-imp="Low"]{ color:var(--text-faint); background:transparent; border-color:var(--border); }
+        button.primary-btn {
+            background-color: var(--accent-blue);
+            color: #fff;
+            border: none;
+            padding: 10px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: background-color 0.2s;
+        }
 
-.chip{
-  display:inline-block; max-width:150px; font-size:10.5px; font-weight:500; color:var(--text-dim);
-  background:var(--bg-inset); border:1px solid var(--border-soft); border-radius:var(--radius);
-  padding:2px 7px; margin:2px 4px 2px 0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; vertical-align:top;
-}
+        button.primary-btn:hover {
+            background-color: #005f9e;
+        }
 
-/* ============================================================
-   CLICKABLE & INTERACTIVE INDICATORS (CHANGE 4)
-   ============================================================ */
-.clickable{
-  cursor:pointer !important;
-  position:relative;
-  transition:border-color .15s ease, transform .12s ease, background .15s ease, box-shadow .15s ease;
-}
-.clickable:hover{
-  border-color:var(--macro) !important;
-  box-shadow:0 0 12px rgba(67,128,250,0.25);
-}
-.clickable-hint{
-  position:absolute; top:4px; right:6px; font-size:9px; font-family:var(--font-mono);
-  color:var(--macro); opacity:0; transition:opacity .15s ease; font-weight:600; letter-spacing:0.3px;
-  pointer-events:none;
-}
-.clickable:hover .clickable-hint{ opacity:1; }
+        /* --- Dashboard Grid --- */
+        .dashboard-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            grid-auto-rows: min-content;
+            gap: 20px;
+        }
 
-/* ============================================================
-   SHELL / LAYOUT
-   ============================================================ */
-.terminal{ max-width:1680px; margin:0 auto; padding:16px 20px 40px; }
+        .dashboard-grid .panel.full-width {
+            grid-column: 1 / -1;
+        }
 
-.term-header{
-  display:flex; align-items:flex-start; justify-content:space-between; gap:16px;
-  padding-bottom:14px; margin-bottom:14px; border-bottom:1px solid var(--border);
-  flex-wrap:wrap;
-}
-.brand{ display:flex; flex-direction:column; gap:2px; }
-.brand-name{ font-size:12px; font-weight:600; letter-spacing:1.4px; color:var(--text-dim); text-transform:uppercase; }
-.brand-title{ font-size:19px; font-weight:600; letter-spacing:0.2px; color:var(--text); }
-.header-right{ display:flex; flex-direction:column; align-items:flex-end; gap:8px; }
-.status-pills{ display:flex; gap:6px; flex-wrap:wrap; justify-content:flex-end; }
-.live-clock{ font-family:var(--font-mono); font-size:11px; color:var(--text-faint); letter-spacing:0.5px; }
+        /* --- Interactive Summary Card (Modular Expansion) --- */
+        .summary-preview-card {
+            cursor: pointer;
+            transition: background-color 0.2s;
+            padding: 15px;
+            border-radius: 4px;
+            border-left: 4px solid var(--accent-blue);
+            background-color: rgba(255, 255, 255, 0.03);
+            position: relative;
+        }
 
-.control-row{
-  display:flex; align-items:stretch; gap:8px; margin-bottom:10px;
-}
-.paste-wrap{
-  flex:1; display:flex; align-items:flex-start; gap:8px;
-  background:var(--card); border:1px solid var(--border); border-radius:var(--radius);
-  padding:9px 12px; transition:border-color .15s ease;
-}
-.paste-wrap:focus-within{ border-color:var(--macro); }
-.prompt-glyph{ font-family:var(--font-mono); color:var(--macro); font-size:14px; line-height:1.5; user-select:none; }
-#pasteZone{
-  flex:1; resize:vertical; min-height:20px; max-height:220px;
-  background:transparent; border:none; outline:none; color:var(--text);
-  font-family:var(--font-mono); font-size:12.5px; line-height:1.5;
-}
-#pasteZone::placeholder{ color:var(--text-faint); font-family:var(--font-sans); }
+        .summary-preview-card:hover {
+            background-color: var(--accent-hover);
+        }
 
-.btn{
-  font-size:11px; font-weight:600; letter-spacing:0.4px; text-transform:uppercase;
-  background:var(--card); color:var(--text-dim); border:1px solid var(--border);
-  border-radius:var(--radius); padding:0 14px; cursor:pointer; white-space:nowrap;
-  transition:border-color .15s ease, color .15s ease, background .15s ease;
-}
-.btn:hover{ border-color:var(--macro); color:var(--text); }
-.btn-icon{
-  width:36px; flex:0 0 36px; display:flex; align-items:center; justify-content:center;
-  background:var(--card); color:var(--text-dim); border:1px solid var(--border);
-  border-radius:var(--radius); cursor:pointer; font-size:15px;
-  transition:border-color .15s ease, color .15s ease, transform .15s ease;
-}
-.btn-icon:hover{ border-color:var(--macro); color:var(--text); }
-.btn-icon.spin{ animation:spin .6s linear infinite; }
-@keyframes spin{ to{ transform:rotate(360deg); } }
+        .preview-text {
+            font-size: 1.05em;
+            margin-bottom: 8px;
+            line-height: 1.5;
+            color: #ccc;
+        }
 
-.error-banner{
-  display:flex; align-items:center; justify-content:space-between; gap:12px;
-  background:var(--bear-dim); border:1px solid rgba(242,69,61,0.35); color:var(--bear);
-  border-radius:var(--radius); padding:8px 14px; margin-bottom:12px; font-size:12px;
-}
-.error-banner button{ background:transparent; border:none; color:var(--bear); cursor:pointer; font-size:15px; line-height:1; }
+        .click-indicator {
+            font-size: 0.85em;
+            color: var(--text-muted);
+            font-style: italic;
+            text-align: right;
+            margin-top: 10px;
+        }
 
-.section-label{
-  font-size:10.5px; font-weight:600; letter-spacing:1px; text-transform:uppercase;
-  color:var(--text-faint); margin:22px 0 8px; display:flex; align-items:center; gap:8px;
-  user-select:none;
-}
-.section-label::after{ content:''; flex:1; height:1px; background:var(--border-soft); }
-.section-label:first-of-type{ margin-top:4px; }
-.section-action-hint{ font-size:9.5px; color:var(--macro); font-family:var(--font-mono); text-transform:none; letter-spacing:0; }
+        /* --- Deep-Context Modal Styling --- */
+        .modal-overlay {
+            display: none; 
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0, 0, 0, 0.8);
+            z-index: 1000;
+            justify-content: center;
+            align-items: center;
+            backdrop-filter: blur(2px);
+        }
 
-/* ============================================================
-   MACRO STATUS STRIP
-   ============================================================ */
-.macro-grid{
-  display:grid; grid-template-columns:repeat(6, 1fr); gap:1px;
-  background:var(--border); border:1px solid var(--border); border-radius:var(--radius); overflow:hidden;
-}
-.kpi-tile{
-  background:var(--card); padding:10px 12px; border-left:3px solid var(--macro);
-  display:flex; flex-direction:column; gap:4px; min-height:88px;
-  transition:background .15s ease; position:relative;
-}
-.kpi-tile:hover{ background:var(--card-raised); }
-.kpi-tile.no-data{ border-left-color:var(--border); opacity:0.5; }
-.kpi-label{ font-size:9.5px; font-weight:600; letter-spacing:0.6px; text-transform:uppercase; color:var(--text-dim); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-.kpi-value{ font-family:var(--font-mono); font-size:19px; font-weight:600; color:var(--text); line-height:1.1; }
-.kpi-meta{ display:flex; align-items:center; justify-content:space-between; font-family:var(--font-mono); font-size:10.5px; color:var(--text-faint); }
-.kpi-arrow{ font-size:11px; }
-.kpi-arrow.up{ color:var(--bull); }
-.kpi-arrow.down{ color:var(--bear); }
-.kpi-arrow.flat{ color:var(--text-faint); }
-.kpi-cons{ font-size:9.5px; color:var(--text-faint); font-family:var(--font-mono); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+        .modal-content {
+            background-color: var(--panel-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            width: 70%;
+            max-width: 900px;
+            max-height: 80vh;
+            display: flex;
+            flex-direction: column;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.7);
+        }
 
-/* ============================================================
-   MARKET BIAS STRIP
-   ============================================================ */
-.bias-grid{ display:grid; grid-template-columns:repeat(5, 1fr); gap:var(--gap); }
-.bias-card{
-  background:var(--card); border:1px solid var(--border); border-top:3px solid var(--neutral);
-  border-radius:var(--radius); padding:13px 14px; display:flex; flex-direction:column; gap:9px;
-  position:relative;
-}
-.bias-card.no-data{ border-top-color:var(--border); opacity:0.5; }
-.bias-card[data-bias="bullish"]{ border-top-color:var(--bull); }
-.bias-card[data-bias="bearish"]{ border-top-color:var(--bear); }
-.bias-card[data-bias="neutral"]{ border-top-color:var(--neutral); }
-.bias-head{ display:flex; align-items:center; justify-content:space-between; }
-.bias-asset{ font-size:12.5px; font-weight:600; letter-spacing:0.3px; }
-.bias-badge{ font-family:var(--font-mono); font-size:9.5px; font-weight:700; letter-spacing:0.5px; padding:2px 7px; border-radius:var(--radius); text-transform:uppercase; }
-.bias-badge[data-bias="bullish"]{ color:var(--bull); background:var(--bull-dim); }
-.bias-badge[data-bias="bearish"]{ color:var(--bear); background:var(--bear-dim); }
-.bias-badge[data-bias="neutral"]{ color:var(--neutral); background:var(--neutral-dim); }
-.bias-badge[data-bias="none"]{ color:var(--text-faint); background:transparent; }
-.conf-label{ display:flex; justify-content:space-between; font-size:9.5px; color:var(--text-faint); font-family:var(--font-mono); margin-bottom:3px; text-transform:uppercase; letter-spacing:0.4px; }
-.conf-bar{ height:4px; background:var(--bg-inset); border-radius:2px; overflow:hidden; }
-.conf-fill{ height:100%; background:var(--macro); border-radius:2px; transition:width .3s ease; }
-.bias-row{ display:flex; gap:6px; font-size:11.5px; }
-.bias-k{ flex:0 0 52px; color:var(--text-faint); font-size:9.5px; font-weight:600; letter-spacing:0.4px; text-transform:uppercase; padding-top:1px; }
-.bias-v{ color:var(--text-dim); flex:1; }
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid var(--border-color);
+            padding: 20px 30px;
+        }
 
-/* ============================================================
-   CHANGE 1: TODAY'S EVENTS & IMPACT MATRIX SECTION
-   ============================================================ */
-.todays-events-grid{ display:grid; grid-template-columns:repeat(auto-fit, minmax(360px, 1fr)); gap:var(--gap); }
-.today-event-card{
-  background:var(--card); border:1px solid var(--border); border-left:4px solid var(--macro);
-  border-radius:var(--radius); padding:12px 14px; display:flex; flex-direction:column; gap:10px;
-  position:relative;
-}
-.today-event-card:hover{ background:var(--card-raised); }
-.today-event-header{ display:flex; align-items:center; justify-content:space-between; gap:8px; }
-.today-event-title{ font-size:13px; font-weight:600; color:var(--text); }
-.today-event-time{ font-family:var(--font-mono); font-size:11px; color:var(--warn); font-weight:600; background:var(--warn-dim); padding:2px 6px; border-radius:var(--radius); }
-.today-event-meta{ display:flex; align-items:center; justify-content:space-between; font-size:11px; color:var(--text-dim); }
-.scenario-box{ display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-top:2px; }
-.scenario-card{
-  border-radius:var(--radius); padding:8px 10px; font-size:11px; line-height:1.4;
-  display:flex; flex-direction:column; gap:4px;
-}
-.scenario-card.pos{ background:var(--bull-dim); border:1px solid rgba(47,191,113,0.3); }
-.scenario-card.neg{ background:var(--bear-dim); border:1px solid rgba(242,69,61,0.3); }
-.scenario-title{ font-family:var(--font-mono); font-size:9.5px; font-weight:700; text-transform:uppercase; letter-spacing:0.4px; }
-.scenario-card.pos .scenario-title{ color:var(--bull); }
-.scenario-card.neg .scenario-title{ color:var(--bear); }
-.scenario-desc{ color:var(--text-dim); font-size:10.5px; }
+        .modal-header h3 { margin: 0; color: #fff; }
 
-/* ============================================================
-   CHANGE 3: CENTRALIZED SUMMARY & KEY NUMBERS SECTION
-   ============================================================ */
-.summary-grid{ display:grid; grid-template-columns:1.4fr 1fr; gap:var(--gap); }
-.summary-card{ background:var(--card); border:1px solid var(--border); border-radius:var(--radius); padding:14px; display:flex; flex-direction:column; gap:10px; position:relative; }
-.summary-card:hover{ background:var(--card-raised); }
-.summary-bullet-list{ margin:0; padding-left:18px; color:var(--text); display:flex; flex-direction:column; gap:6px; font-size:12px; line-height:1.5; }
-.summary-bullet-list li{ color:var(--text-dim); }
-.summary-bullet-list li strong{ color:var(--text); }
+        .close-modal {
+            background: none;
+            border: none;
+            color: var(--text-muted);
+            font-size: 1.8em;
+            cursor: pointer;
+            transition: color 0.2s;
+        }
 
-.numbers-grid{ display:grid; grid-template-columns:repeat(auto-fill, minmax(140px, 1fr)); gap:8px; }
-.number-item{
-  background:var(--bg-inset); border:1px solid var(--border-soft); border-radius:var(--radius);
-  padding:8px 10px; display:flex; flex-direction:column; gap:2px;
-}
-.number-val{ font-family:var(--font-mono); font-size:15px; font-weight:700; color:var(--macro); }
-.number-lbl{ font-size:10px; font-weight:600; text-transform:uppercase; color:var(--text-dim); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-.number-ctx{ font-size:9.5px; color:var(--text-faint); line-height:1.2; }
+        .close-modal:hover { color: #fff; }
 
-/* ============================================================
-   PANEL CHROME (shared by main + bottom grids)
-   ============================================================ */
-.main-grid{ display:grid; grid-template-columns:1.2fr 1fr 1.25fr; gap:var(--gap); align-items:start; }
-.bottom-grid{ display:grid; grid-template-columns:1.3fr 1.15fr 0.85fr; gap:var(--gap); align-items:start; }
+        .modal-body {
+            padding: 30px;
+            overflow-y: auto;
+            color: #dcdcdc;
+            line-height: 1.7;
+            font-size: 1.1em;
+        }
+        
+        .modal-body p {
+            margin-top: 0;
+            margin-bottom: 20px;
+        }
 
-.panel{ background:var(--card); border:1px solid var(--border); border-radius:var(--radius); display:flex; flex-direction:column; overflow:hidden; position:relative; }
-.panel-head{ display:flex; align-items:center; justify-content:space-between; padding:10px 13px; border-bottom:1px solid var(--border); }
-.panel-title{ font-size:10.5px; font-weight:600; letter-spacing:0.8px; text-transform:uppercase; color:var(--text-dim); }
-.panel-count{ font-family:var(--font-mono); font-size:10px; color:var(--text-faint); }
-.panel-body{ padding:6px; max-height:520px; overflow-y:auto; }
-.panel-body.no-pad{ padding:0; }
+        /* --- Metrics Tables --- */
+        .metric-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 8px 0;
+            border-bottom: 1px solid rgba(255,255,255,0.05);
+        }
+        .metric-label { color: var(--text-muted); }
+        .metric-val { font-weight: bold; font-family: monospace; }
+        .val-up { color: #4caf50; }
+        .val-down { color: #f44336; }
+        .val-neutral { color: #ffeb3b; }
 
-.empty-state{ padding:28px 16px; text-align:center; color:var(--text-faint); font-size:11.5px; }
-
-/* ---- Events timeline ---- */
-.timeline{ position:relative; }
-.event-item{ position:relative; display:flex; gap:10px; padding:9px 8px; border-radius:var(--radius); }
-.event-item:hover{ background:var(--card-raised); }
-.event-item:not(:last-child){ border-bottom:1px solid var(--border-soft); }
-.event-time-col{ flex:0 0 85px; display:flex; flex-direction:column; gap:2px; font-family:var(--font-mono); font-size:10px; color:var(--text-faint); padding-top:2px; }
-.event-date-stamp{ font-size:9px; color:var(--macro); font-weight:600; }
-.event-body{ flex:1; min-width:0; }
-.event-top{ display:flex; align-items:center; gap:6px; margin-bottom:3px; flex-wrap:wrap; }
-.event-cat{ font-size:9px; font-weight:600; letter-spacing:0.5px; text-transform:uppercase; color:var(--macro); }
-.event-headline{ font-size:12px; font-weight:500; color:var(--text); margin-bottom:2px; }
-.event-why{ font-size:11px; color:var(--text-dim); margin-bottom:5px; }
-
-/* ---- Narratives ---- */
-.narrative-grid{ display:flex; flex-direction:column; gap:6px; }
-.narrative-card{ border:1px solid var(--border-soft); border-radius:var(--radius); padding:9px 10px; background:var(--bg-inset); position:relative; }
-.narrative-card:hover{ background:var(--card-raised); }
-.narrative-top{ display:flex; align-items:center; justify-content:space-between; margin-bottom:6px; }
-.narrative-name{ font-size:12px; font-weight:500; }
-.narrative-bar{ height:3px; background:var(--border-soft); border-radius:2px; overflow:hidden; margin-bottom:6px; }
-.narrative-fill{ height:100%; border-radius:2px; }
-.narrative-fill[data-tone="bullish"]{ background:var(--bull); }
-.narrative-fill[data-tone="bearish"]{ background:var(--bear); }
-.narrative-fill[data-tone="neutral"]{ background:var(--neutral); }
-.narrative-fill[data-tone="macro"]{ background:var(--macro); }
-.narrative-fill[data-tone="warning"]{ background:var(--warn); }
-.narrative-assets{ font-size:10.5px; color:var(--text-faint); }
-
-/* ---- Tables ---- */
-.table-toolbar{ display:flex; gap:8px; padding:8px; border-bottom:1px solid var(--border); }
-.search-input{
-  flex:1; background:var(--bg-inset); border:1px solid var(--border); color:var(--text);
-  border-radius:var(--radius); padding:6px 9px; font-size:11.5px; font-family:var(--font-sans); outline:none;
-}
-.search-input:focus{ border-color:var(--macro); }
-.imp-filter{
-  background:var(--bg-inset); border:1px solid var(--border); color:var(--text-dim);
-  border-radius:var(--radius); padding:6px 8px; font-size:11px; font-family:var(--font-sans); outline:none;
-}
-.data-table{ width:100%; border-collapse:collapse; font-size:11.5px; }
-.data-table th{
-  text-align:left; font-size:9.5px; font-weight:600; letter-spacing:0.5px; text-transform:uppercase;
-  color:var(--text-faint); padding:7px 10px; border-bottom:1px solid var(--border); cursor:pointer;
-  user-select:none; white-space:nowrap; position:sticky; top:0; background:var(--card);
-}
-.data-table th:hover{ color:var(--text-dim); }
-.data-table th .sort-ind{ font-size:9px; margin-left:3px; opacity:0.5; }
-.data-table td{ padding:7px 10px; border-bottom:1px solid var(--border-soft); vertical-align:top; color:var(--text-dim); }
-.data-table tbody tr:hover{ background:var(--card-raised); cursor:pointer; }
-.data-table td.mono, .data-table .mono{ font-family:var(--font-mono); }
-.data-table td.strong{ color:var(--text); font-weight:500; }
-
-/* ---- Asset driver matrix ---- */
-.matrix-asset{ color:var(--text); font-weight:600; white-space:nowrap; }
-.driver-list{ font-size:11px; color:var(--text-dim); }
-
-/* ---- Institutional positioning ---- */
-.pos-list{ display:flex; flex-direction:column; }
-.pos-row{ display:flex; align-items:center; justify-content:space-between; padding:8px 13px; border-bottom:1px solid var(--border-soft); }
-.pos-row:hover{ background:var(--card-raised); cursor:pointer; }
-.pos-row:last-child{ border-bottom:none; }
-.pos-label{ font-size:10px; color:var(--text-dim); font-weight:500; letter-spacing:0.2px; text-transform:uppercase; }
-.pos-value{ display:flex; align-items:center; gap:7px; }
-.pos-dot{ width:7px; height:7px; border-radius:50%; flex:0 0 7px; }
-.pos-dot[data-tone="bullish"]{ background:var(--bull); box-shadow:0 0 0 3px var(--bull-dim); }
-.pos-dot[data-tone="bearish"]{ background:var(--bear); box-shadow:0 0 0 3px var(--bear-dim); }
-.pos-dot[data-tone="neutral"]{ background:var(--neutral); box-shadow:0 0 0 3px var(--neutral-dim); }
-.pos-dot[data-tone="macro"]{ background:var(--macro); box-shadow:0 0 0 3px var(--macro-dim); }
-.pos-dot[data-tone="warning"]{ background:var(--warn); box-shadow:0 0 0 3px var(--warn-dim); }
-.pos-dot[data-tone="none"]{ background:var(--text-faint); box-shadow:none; }
-.pos-text{ font-family:var(--font-mono); font-size:11px; color:var(--text); }
-
-.gauge-wrap{ padding:14px 16px 4px; text-align:center; border-bottom:1px solid var(--border); }
-.gauge-score{ font-family:var(--font-mono); font-size:22px; font-weight:600; margin-top:2px; }
-.gauge-caption{ font-size:9.5px; color:var(--text-faint); letter-spacing:0.3px; margin-top:2px; }
-.gauge-labels{ display:flex; justify-content:space-between; font-size:9px; color:var(--text-faint); letter-spacing:0.4px; text-transform:uppercase; padding:0 6px; margin-top:-4px; }
-
-/* ============================================================
-   CHANGE 4: MODAL OVERLAY FOR SECTION EXPANSION & EXPLAINABILITY
-   ============================================================ */
-.modal-overlay{
-  position:fixed; top:0; left:0; width:100vw; height:100vh;
-  background:rgba(8, 11, 15, 0.82); backdrop-filter:blur(5px);
-  z-index:1000; display:flex; align-items:center; justify-content:center;
-  padding:20px; animation:fadeIn .15s ease-out;
-}
-@keyframes fadeIn{ from{ opacity:0; } to{ opacity:1; } }
-
-.modal-card{
-  background:var(--card); border:1px solid var(--border); border-radius:4px;
-  width:100%; max-width:920px; max-height:88vh; display:flex; flex-direction:column;
-  box-shadow:0 16px 48px rgba(0,0,0,0.6); overflow:hidden;
-}
-.modal-head{
-  display:flex; align-items:center; justify-content:space-between; padding:14px 18px;
-  border-bottom:1px solid var(--border); background:var(--card-raised);
-}
-.modal-title{ font-size:16px; font-weight:600; color:var(--text); margin:2px 0 0 0; }
-.modal-close{
-  background:transparent; border:none; color:var(--text-dim); font-size:22px; cursor:pointer;
-  line-height:1; padding:0 4px; border-radius:2px; transition:color .15s;
-}
-.modal-close:hover{ color:var(--text); }
-.modal-body{ padding:20px; overflow-y:auto; flex:1; font-size:12.5px; line-height:1.6; color:var(--text-dim); }
-
-.explain-box{
-  background:var(--bg-inset); border-left:3px solid var(--macro);
-  padding:12px 14px; margin-bottom:18px; border-radius:2px;
-}
-.explain-box-title{ font-family:var(--font-mono); font-size:10px; font-weight:700; color:var(--macro); text-transform:uppercase; letter-spacing:0.6px; margin-bottom:4px; }
-.explain-box-body{ color:var(--text); font-size:12px; }
-
-.modal-section-title{ font-size:11px; font-weight:700; letter-spacing:0.8px; text-transform:uppercase; color:var(--text-faint); margin:18px 0 8px; }
-.modal-sentence-list{ list-style:none; padding:0; margin:0; display:flex; flex-direction:column; gap:8px; }
-.modal-sentence-item{ background:var(--bg-inset); border:1px solid var(--border-soft); padding:8px 12px; border-radius:var(--radius); font-size:12px; color:var(--text); line-height:1.5; }
-
-.term-footer{ margin-top:26px; padding-top:14px; border-top:1px solid var(--border-soft); display:flex; justify-content:space-between; font-size:10px; color:var(--text-faint); letter-spacing:0.3px; flex-wrap:wrap; gap:6px; }
-
-/* ============================================================
-   RESPONSIVE
-   ============================================================ */
-@media (max-width:1400px){
-  .macro-grid{ grid-template-columns:repeat(4,1fr); }
-  .bias-grid{ grid-template-columns:repeat(3,1fr); }
-  .summary-grid{ grid-template-columns:1fr; }
-}
-@media (max-width:1100px){
-  .main-grid, .bottom-grid{ grid-template-columns:1fr; }
-}
-@media (max-width:720px){
-  .macro-grid{ grid-template-columns:repeat(2,1fr); }
-  .bias-grid{ grid-template-columns:repeat(2,1fr); }
-  .todays-events-grid{ grid-template-columns:1fr; }
-  .term-header{ flex-direction:column; }
-  .header-right{ align-items:flex-start; }
-  .status-pills{ justify-content:flex-start; }
-}
-</style>
+    </style>
 </head>
 <body>
-<div class="terminal" id="app">
 
-  <header class="term-header">
-    <div class="brand">
-      <div class="brand-name">Ashford Capital</div>
-      <div class="brand-title">Market Intelligence Terminal</div>
-    </div>
-    <div class="header-right">
-      <div class="live-clock" id="liveClock">—</div>
-      <div class="status-pills" id="statusPills"></div>
-    </div>
-  </header>
-
-  <div class="control-row">
-    <label class="paste-wrap" for="pasteZone">
-      <span class="prompt-glyph">▍</span>
-      <textarea id="pasteZone" rows="1" placeholder="Paste raw market intelligence to refresh the terminal — parses automatically, no submit needed…"></textarea>
-    </label>
-    <button class="btn-icon" id="retryBtn" title="Re-run parse on current input" aria-label="Re-run parse">⟳</button>
-    <button class="btn" id="sampleBtn" title="Load sample dataset to preview the layout">Load Sample</button>
-  </div>
-
-  <div class="error-banner hidden" id="errorBanner">
-    <span id="errorText"></span>
-    <button id="errorDismiss" aria-label="Dismiss">×</button>
-  </div>
-
-  <!-- MACRO STATUS -->
-  <div class="section-label">
-    <span>Macro Status</span>
-    <span class="section-action-hint">Click tile for context & full logic ⤢</span>
-  </div>
-  <section class="macro-grid" id="macroStrip"></section>
-
-  <!-- MARKET BIAS -->
-  <div class="section-label">
-    <span>Market Bias</span>
-    <span class="section-action-hint">Click asset for drivers & sentiment breakdown ⤢</span>
-  </div>
-  <section class="bias-grid" id="biasStrip"></section>
-
-  <!-- CHANGE 1: TODAY'S EVENTS TO WATCH & IMPACT ANALYSIS -->
-  <div class="section-label">
-    <span>Today's Events & Scenario Impact Analysis</span>
-    <span class="section-action-hint">Click event to expand transmission model ⤢</span>
-  </div>
-  <section class="todays-events-grid" id="todaysEventsGrid"></section>
-
-  <!-- CHANGE 3: CENTRALIZED SUMMARY & KEY NUMBERS -->
-  <div class="section-label">
-    <span>Centralized Content Summary & Key Figures</span>
-    <span class="section-action-hint">Click summary card for full source sentences ⤢</span>
-  </div>
-  <section class="summary-grid" id="summaryGrid"></section>
-
-  <!-- DASHBOARD PANELS -->
-  <div class="section-label">
-    <span>Dashboard</span>
-    <span class="section-action-hint">Click panels for full views ⤢</span>
-  </div>
-  <main class="main-grid">
-    <!-- CHANGE 2: MARKET MOVING EVENTS ENHANCEMENT -->
-    <div class="panel clickable" data-modal-type="events-panel">
-      <span class="clickable-hint">EXPAND ⤢</span>
-      <div class="panel-head"><span class="panel-title">Market Moving Events</span><span class="panel-count" id="eventsCount"></span></div>
-      <div class="panel-body" id="eventsPanel"></div>
-    </div>
-    <div class="panel clickable" data-modal-type="narratives-panel">
-      <span class="clickable-hint">EXPAND ⤢</span>
-      <div class="panel-head"><span class="panel-title">Narrative Monitor</span><span class="panel-count" id="narrativesCount"></span></div>
-      <div class="panel-body" id="narrativesPanel"></div>
-    </div>
-    <div class="panel clickable" data-modal-type="watchlist-panel">
-      <span class="clickable-hint">EXPAND ⤢</span>
-      <div class="panel-head"><span class="panel-title">Tomorrow Watchlist</span><span class="panel-count" id="watchlistCount"></span></div>
-      <div class="table-toolbar" onclick="event.stopPropagation()">
-        <input class="search-input" id="watchlistSearch" placeholder="Search watchlist…">
-        <select class="imp-filter" id="watchlistImpFilter">
-          <option value="">All</option><option value="High">High</option><option value="Medium">Medium</option><option value="Low">Low</option>
-        </select>
-      </div>
-      <div class="panel-body no-pad" id="watchlistPanel"></div>
-    </div>
-  </main>
-
-  <!-- INSTITUTIONAL DETAIL -->
-  <div class="section-label">
-    <span>Institutional Detail</span>
-    <span class="section-action-hint">Click panels for full views ⤢</span>
-  </div>
-  <section class="bottom-grid">
-    <div class="panel clickable" data-modal-type="macro-table-panel">
-      <span class="clickable-hint">EXPAND ⤢</span>
-      <div class="panel-head"><span class="panel-title">US Macro Dashboard</span><span class="panel-count" id="macroTableCount"></span></div>
-      <div class="table-toolbar" onclick="event.stopPropagation()">
-        <input class="search-input" id="macroTableSearch" placeholder="Search indicators…">
-      </div>
-      <div class="panel-body no-pad" id="macroTablePanel"></div>
-    </div>
-    <div class="panel clickable" data-modal-type="matrix-panel">
-      <span class="clickable-hint">EXPAND ⤢</span>
-      <div class="panel-head"><span class="panel-title">Asset Driver Matrix</span></div>
-      <div class="panel-body no-pad" id="matrixPanel"></div>
-    </div>
-    <div class="panel clickable" data-modal-type="positioning-panel">
-      <span class="clickable-hint">EXPAND ⤢</span>
-      <div class="panel-head"><span class="panel-title">Institutional Positioning</span></div>
-      <div class="gauge-wrap" id="gaugeWrap"></div>
-      <div class="panel-body no-pad"><div class="pos-list" id="positioningPanel"></div></div>
-    </div>
-  </section>
-
-  <footer class="term-footer">
-    <span>Parsed instantly in your browser · nothing you paste ever leaves this device</span>
-    <span id="footerRight">Ashford Capital — internal use</span>
-  </footer>
-
-</div>
-
-<!-- CHANGE 4: INTERACTIVE DETAIL VIEW & EXPLAINABILITY MODAL -->
-<div class="modal-overlay hidden" id="detailModal">
-  <div class="modal-card">
-    <div class="modal-head">
-      <div>
-        <div class="eyebrow" id="modalCategory">SECTION DETAIL & EXPLAINABILITY</div>
-        <h2 class="modal-title" id="modalTitle">Section Full View</h2>
-      </div>
-      <button class="modal-close" id="modalCloseBtn" aria-label="Close modal">&times;</button>
-    </div>
-    <div class="modal-body" id="modalBody"></div>
-  </div>
-</div>
-
-<script>
-/* ============================================================
-   CONFIG — fixed schema definitions
-   ============================================================ */
-const MACRO_DEFS = [
-  {id:'fed',   label:'Fed Funds Rate'},
-  {id:'cpiH',  label:'Headline CPI'},
-  {id:'cpiC',  label:'Core CPI'},
-  {id:'ppiH',  label:'Headline PPI'},
-  {id:'ppiC',  label:'Core PPI'},
-  {id:'real',  label:'Real Rate'},
-  {id:'y2',    label:'2Y Yield'},
-  {id:'y10',   label:'10Y Yield'},
-  {id:'dxy',   label:'DXY'},
-  {id:'wti',   label:'WTI'},
-  {id:'brent', label:'Brent'},
-  {id:'vix',   label:'VIX'},
-];
-const ASSET_DEFS = [
-  {id:'gold',     label:'Gold'},
-  {id:'nifty',    label:'Nifty'},
-  {id:'usEq',     label:'US Equities'},
-  {id:'usBonds',  label:'US Bonds'},
-  {id:'btc',      label:'Bitcoin'},
-];
-const POS_DEFS = [
-  {id:'risk',      label:'Risk On / Risk Off'},
-  {id:'inflation', label:'Inflation Theme'},
-  {id:'growth',    label:'Growth Theme'},
-  {id:'liquidity', label:'Liquidity Theme'},
-  {id:'fed',       label:'Fed Theme'},
-  {id:'dollar',    label:'Dollar Theme'},
-  {id:'bond',      label:'Bond Theme'},
-  {id:'gold',      label:'Gold Theme'},
-];
-
-/* ============================================================
-   STATE
-   ============================================================ */
-let dataset = null;       // normalized dataset currently rendered
-let rawSentences = [];   // full parsed text sentences for explainability
-let isDemo = false;
-let isParsing = false;
-let lastUpdatedAt = null;
-let lastFoundCount = null;
-
-const watchlistState = { query:'', imp:'', sortKey:null, sortDir:'asc' };
-const macroTableState = { query:'', sortKey:null, sortDir:'asc' };
-
-/* ============================================================
-   UTILITIES
-   ============================================================ */
-function $(sel, root){ return (root||document).querySelector(sel); }
-function esc(v){
-  if(v===null||v===undefined) return '';
-  return String(v).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-}
-function debounce(fn, ms){ let t; return (...a)=>{ clearTimeout(t); t=setTimeout(()=>fn(...a), ms); }; }
-function assetLabel(id){ const a = ASSET_DEFS.find(x=>x.id===id); return a? a.label : id; }
-
-/* ============================================================
-   DATASET NORMALIZATION
-   ============================================================ */
-function normalizeDataset(raw){
-  const d = raw || {};
-  const macro = {};
-  MACRO_DEFS.forEach(m=>{
-    const v = (d.macro && d.macro[m.id]) || {};
-    macro[m.id] = { cur:v.cur||'', prev:v.prev||'', cons:v.cons||'', d:v.d||'na', note:v.note||'' };
-  });
-  const bias = {};
-  ASSET_DEFS.forEach(a=>{
-    const v = (d.bias && d.bias[a.id]) || {};
-    bias[a.id] = { b:v.b||'', cf:(typeof v.cf==='number'?v.cf:null), pd:v.pd||'', br:v.br||'', nc:v.nc||'' };
-  });
-  const matrix = {};
-  ASSET_DEFS.forEach(a=>{
-    const v = (d.matrix && d.matrix[a.id]) || {};
-    matrix[a.id] = { bd:v.bd||'', brd:v.brd||'', cd:v.cd||'', b:v.b||'', cf:(typeof v.cf==='number'?v.cf:null) };
-  });
-  const pos = POS_DEFS.map(p=>{
-    const src = (d.pos && d.pos[p.id]);
-    return { id:p.id, label:p.label, v:(src&&src.v)||'', tone:(src&&src.tone)||'none' };
-  });
-  // CHANGE 2: Enforce release date & time on events
-  const events = Array.isArray(d.events) ? d.events.filter(e=>e && e.h).slice(0,8).map(e=>({
-    cat:e.cat||'General', date:e.date||'Today', t:e.t||'—', h:e.h||'', w:e.w||'', aa:e.aa||'', imp:e.imp||'Low'
-  })) : [];
-  // CHANGE 1: Today's Events & Impact Scenarios
-  const todaysEvents = Array.isArray(d.todaysEvents) ? d.todaysEvents.map(te=>({
-    t:te.t||'Today', event:te.event||'', cons:te.cons||'N/A', posImpact:te.posImpact||'', negImpact:te.negImpact||'', cat:te.cat||'Macro', aa:te.aa||''
-  })) : [];
-  // CHANGE 3: Centralized Summary & Key Numbers
-  const summaryBullets = Array.isArray(d.summaryBullets) ? d.summaryBullets : [];
-  const keyNumbers = Array.isArray(d.keyNumbers) ? d.keyNumbers : [];
-
-  const narratives = Array.isArray(d.narratives) ? d.narratives.filter(n=>n && n.n).slice(0,6).map(n=>({
-    n:n.n||'', tone:n.tone||'neutral', s:(typeof n.s==='number'?n.s:50), aa:n.aa||''
-  })) : [];
-  const watchlist = Array.isArray(d.watchlist) ? d.watchlist.filter(w=>w && w.e).slice(0,8).map(w=>({
-    t:w.t||'', e:w.e||'', f:w.f||'', imp:w.imp||'Low', aa:w.aa||''
-  })) : [];
-  const meta = {
-    source:(d.meta&&d.meta.source)||'', session:(d.meta&&d.meta.session)||'', headline:(d.meta&&d.meta.headline)||''
-  };
-  return { meta, macro, bias, matrix, pos, events, todaysEvents, summaryBullets, keyNumbers, narratives, watchlist };
-}
-
-/* ============================================================
-   LOCAL EXTRACTION ENGINE
-   ============================================================ */
-const MACRO_ORDER = MACRO_DEFS.map(m=>m.id);
-const LOCAL_ASSET_IDS = ASSET_DEFS.map(a=>a.id);
-
-const PUA = '\uE000';
-function protectText(text){
-  return text
-    .replace(/\.{2,}/g, m=>PUA.repeat(m.length))
-    .replace(/(\d)\.(\d)/g, '$1'+PUA+'$2')
-    .replace(/\b(Mr|Mrs|Ms|Dr|Jr|Sr|vs|etc|approx|Inc|Corp|Ltd|St|No|Rs|U\.S|U\.K|e\.g|i\.e)\./gi, m=>m.replace('.',PUA));
-}
-function unprotectText(text){ return text.split(PUA).join('.'); }
-
-function findKeywordOccurrences(text, regexList){
-  const hits = [];
-  for(const re of regexList){
-    const flags = re.flags.includes('g') ? re.flags : re.flags+'g';
-    const g = new RegExp(re.source, flags);
-    let m;
-    while((m = g.exec(text)) !== null){
-      hits.push({ index:m.index, length:m[0].length });
-      if(m[0].length===0) g.lastIndex++;
-    }
-  }
-  hits.sort((a,b)=>a.index-b.index);
-  const out = [];
-  hits.forEach(h=>{
-    if(!out.length || h.index > out[out.length-1].index + out[out.length-1].length) out.push(h);
-  });
-  return out;
-}
-function windowAround(protectedText, start, end, back, fwd){
-  back = back||90; fwd = fwd||140;
-  let lo = Math.max(0, start-back);
-  let hi = Math.min(protectedText.length, end+fwd);
-  const seg = protectedText.slice(lo, start);
-  const lastBoundary = Math.max(seg.lastIndexOf('.'), seg.lastIndexOf('!'), seg.lastIndexOf('?'), seg.lastIndexOf('\n'), seg.lastIndexOf(';'));
-  if(lastBoundary !== -1) lo = lo + lastBoundary + 1;
-  const segF = protectedText.slice(end, hi);
-  const nextBoundary = segF.search(/[.!?\n]/);
-  if(nextBoundary !== -1) hi = end + nextBoundary + 1;
-  return unprotectText(protectedText.slice(lo, hi).trim());
-}
-function trimToWords(s, n){
-  const clean = (s||'').replace(/\s+/g,' ').trim().replace(/^[,;:\-\s]+|[,;:\-\s]+$/g,'');
-  const words = clean.split(' ');
-  if(words.length<=n) return clean;
-  return words.slice(0,n).join(' ') + '\u2026';
-}
-
-function extractNumberTokens(str){
-  const re = /-?\$?\d[\d,]*(?:\.\d+)?\s?(?:%|bps|bp)?/g;
-  const all = [...str.matchAll(re)].map(m=>({text:m[0].trim(), index:m.index, end:m.index+m[0].length})).filter(t=>/\d/.test(t.text));
-  return all.filter(t=>{
-    if(/%/.test(t.text)) return true;
-    const after = str.slice(t.end, t.end+8);
-    if(/^-\s?year\b/i.test(after)) return false;
-    if(/^Y\b/.test(str.slice(t.end,t.end+1))) return false;
-    return true;
-  });
-}
-function classifyNumbers(context, numberTokens){
-  let cur='', prev='', cons='';
-  const lower = context.toLowerCase();
-  const assigned = new Set();
-  numberTokens.forEach((tok,i)=>{
-    const before = lower.slice(Math.max(0, tok.index-32), tok.index);
-    if(!cons && /consensus|expected|estimate|forecast|economists|survey|projected/.test(before)){ cons=tok.text; assigned.add(i); }
-  });
-  numberTokens.forEach((tok,i)=>{
-    if(assigned.has(i)) return;
-    const before = lower.slice(Math.max(0, tok.index-36), tok.index);
-    if(!prev && /\bfrom\b|\bprior\b|\bprevious\b|\blast month\b|\blast reading\b|\bversus\b|\bvs\.?\b|\bcompared (?:to|with)\b|\bpreceding\b|\bdown from\b|\bup from\b/.test(before)){ prev=tok.text; assigned.add(i); }
-  });
-  for(let i=0;i<numberTokens.length;i++){
-    if(!assigned.has(i)){ cur = numberTokens[i].text; assigned.add(i); break; }
-  }
-  return {cur, prev, cons};
-}
-
-const UP_WORDS   = /\b(ros[ei]|rising|risen|higher|climb(?:ed|ing)?|jump(?:ed|ing)?|surg(?:e|ed|ing)|increas(?:e|ed|ing)|gain(?:ed|s)?|accelerat(?:e|ed|ing)|advanc(?:e|ed|ing)|spik(?:e|ed|ing)|beats?|topped|stronger.than.expected|higher.than.expected)\b/i;
-const DOWN_WORDS = /\b(fell|falling|fallen|lower|declin(?:e|ed|ing)|decreas(?:e|ed|ing)|dropp?(?:ed|ing)?|eas(?:e|ed|ing)|cool(?:ed|ing)?|slow(?:ed|ing)?|slipp?(?:ed|ing)?|retreat(?:ed|ing)?|soften(?:ed|ing)?|weaken(?:ed|ing)?|miss(?:ed)?|below.forecast|cooler.than.expected|lower.than.expected)\b/i;
-const FLAT_WORDS = /\b(unchanged|steady|held|holds?|holding|flat|in line|matched|as expected|no change|maintained|paused|stable)\b/i;
-function detectTrend(context, cur, prev){
-  const curN = parseFloat((cur||'').replace(/[^0-9.\-]/g,''));
-  const prevN = parseFloat((prev||'').replace(/[^0-9.\-]/g,''));
-  if(!isNaN(curN) && !isNaN(prevN) && prev){
-    if(curN>prevN) return 'up';
-    if(curN<prevN) return 'down';
-    return 'flat';
-  }
-  if(FLAT_WORDS.test(context)) return 'flat';
-  if(UP_WORDS.test(context)) return 'up';
-  if(DOWN_WORDS.test(context)) return 'down';
-  return 'na';
-}
-
-const MACRO_PATTERNS = {
-  cpiC:  [/\bcore\s+cpi\b/i, /\bcore\s+consumer\s+price\s+index\b/i, /\bcore\s+inflation\b/i],
-  cpiH:  [/(?<!core\s)\bcpi\b/i, /\bheadline\s+cpi\b/i, /\bconsumer\s+price\s+index\b/i, /\bheadline\s+inflation\b/i],
-  ppiC:  [/\bcore\s+ppi\b/i, /\bcore\s+producer\s+price\b/i],
-  ppiH:  [/(?<!core\s)\bppi\b/i, /\bproducer\s+price\s+index\b/i],
-  fed:   [/\bfed\s+funds\s+rate\b/i, /\bfederal\s+funds\s+rate\b/i, /\bpolicy\s+rate\b/i, /\bbenchmark\s+(?:interest\s+)?rate\b/i, /\bfed\s+rate\b/i, /\bfed\s+(?:holds?|held|keeps?|kept|maintains?|left|leaves?|cuts?|hikes?|raises?|raised)\s+(?:interest\s+)?rates?\b/i],
-  real:  [/\breal\s+(?:interest\s+)?rate\b/i, /\breal\s+yield/i],
-  y2:    [/\b2[\s-]?year\s+(?:treasury\s+)?yield/i, /\btwo[\s-]year\s+(?:treasury\s+)?yield/i, /\b2y\s+yield/i],
-  y10:   [/\b10[\s-]?year\s+(?:treasury\s+)?yield/i, /\bten[\s-]year\s+(?:treasury\s+)?yield/i, /\b10y\s+yield/i],
-  dxy:   [/\bdxy\b/i, /\bdollar\s+index\b/i, /\bu\.?s\.?\s+dollar\s+index\b/i],
-  wti:   [/\bwti\b/i, /\bwest\s+texas\s+intermediate\b/i],
-  brent: [/\bbrent\b/i],
-  vix:   [/\bvix\b/i, /\bvolatility\s+index\b/i, /\bfear\s+index\b/i],
-};
-function extractMacro(protectedText){
-  const allHits = [];
-  MACRO_ORDER.forEach(id=>{
-    findKeywordOccurrences(protectedText, MACRO_PATTERNS[id]).forEach(h=>allHits.push({...h, id}));
-  });
-  allHits.sort((a,b)=>a.index-b.index);
-  const out = {};
-  MACRO_ORDER.forEach(id=>{
-    let best=null, bestScore=-1;
-    allHits.forEach((h,i)=>{
-      if(h.id!==id) return;
-      const nextOther = allHits.slice(i+1).find(x=>x.id!==id);
-      const fwdLim = nextOther ? Math.max(20, Math.min(70, nextOther.index-(h.index+h.length))) : 70;
-      const narrowCtx = windowAround(protectedText, h.index, h.index+h.length, 10, fwdLim);
-      const wideCtx = windowAround(protectedText, h.index, h.index+h.length, 90, 140);
-      const nums = extractNumberTokens(narrowCtx);
-      const {cur,prev,cons} = classifyNumbers(narrowCtx, nums);
-      const score = (cur?2:0)+(prev?1:0)+(cons?1:0);
-      if(score>bestScore){ bestScore=score; best={wideCtx,cur,prev,cons}; }
-    });
-    out[id] = (best && best.cur)
-      ? { cur:best.cur, prev:best.prev, cons:best.cons, d:detectTrend(best.wideCtx,best.cur,best.prev), note:trimToWords(best.wideCtx,9) }
-      : { cur:'', prev:'', cons:'', d:'na', note:'' };
-  });
-  return out;
-}
-
-const ASSET_ALIASES = {
-  gold:    [/\bgold\b/i, /\bxau\s?\/?\s?usd\b/i, /\bbullion\b/i],
-  nifty:   [/\bnifty\s?50\b/i, /\bnifty\b/i, /\bsensex\b/i, /\bindian\s+equit(?:y|ies)\b/i],
-  usEq:    [/\bs&p\s?500\b/i, /\bs&p\b/i, /\bnasdaq\b/i, /\bdow\s+jones\b/i, /\bdow\b/i, /\bus\s+equit(?:y|ies)\b/i, /\bus\s+stocks?\b/i, /\bwall\s+street\b/i],
-  usBonds: [/\btreasur(?:y|ies)\b/i, /\bus\s+bonds?\b/i, /\bbond\s+market\b/i, /\bt-notes?\b/i, /\bt-bonds?\b/i],
-  btc:     [/\bbitcoin\b/i, /\bbtc\b/i, /\bcrypto(?:currency)?\b/i],
-};
-const BULLISH_WORDS = /\b(bullish\s+on|turn(?:ed|ing)?\s+bullish|remains?\s+bullish|rall(?:y|ied|ying)|ros[ei]|rising|gain(?:s|ed)?|higher|surg(?:e|ed|ing)|jump(?:ed|ing)?|strengthen(?:ed|ing)?|outperform(?:ed|ing)?|buying|inflows?|support(?:ed|ive)?|upside|breakout|accumulat(?:e|ed|ing|ion)|tailwind|boost(?:ed)?|buoyed(?:\s+by)?|climb(?:ed|ing)?|advanc(?:e|ed|ing)|record\s+high)\b/;
-const BULLISH_RE = new RegExp(BULLISH_WORDS.source, 'gi');
-const BEARISH_WORDS = /\b(bearish\s+on|turn(?:ed|ing)?\s+bearish|remains?\s+bearish|sell.?off|sold\s+off|selling|fell|falling|declin(?:e|ed|ing)|dropp?(?:ed|ing)?|weak(?:ness)?|pressure[d]?|downside|breakdown|outflows?|losses|slid(?:e|ing)?|plung(?:e|ed|ing)?|retreat(?:ed|ing)?|headwind|weigh(?:ed|ing)?\s+down)\b/;
-const BEARISH_RE = new RegExp(BEARISH_WORDS.source, 'gi');
-
-function extractAssets(protectedText){
-  const bias={}, matrix={};
-  LOCAL_ASSET_IDS.forEach(id=>{
-    const hits = findKeywordOccurrences(protectedText, ASSET_ALIASES[id]);
-    if(!hits.length){
-      bias[id] = {b:'',cf:null,pd:'',br:'',nc:''};
-      matrix[id] = {bd:'',brd:'',cd:'',b:'',cf:null};
-    } else {
-      let bullN=0, bearN=0, bestCtx='';
-      hits.forEach(h=>{
-        const ctx = windowAround(protectedText, h.index, h.index+h.length, 70, 130);
-        if(!bestCtx) bestCtx = ctx;
-        if(BULLISH_RE.test(ctx)) bullN++;
-        if(BEARISH_RE.test(ctx)) bearN++;
-      });
-      const b = bullN>bearN ? 'Bullish' : bearN>bullN ? 'Bearish' : 'Neutral';
-      const cf = Math.min(92, Math.max(40, 50 + (bullN-bearN)*12));
-      bias[id] = { b, cf, pd:trimToWords(bestCtx, 8), br:'Macro Volatility', nc:'Upcoming Data Release' };
-      matrix[id] = { bd:'Inflows & Tailwinds', brd:'Macro Headwinds', cd:trimToWords(bestCtx, 6), b, cf };
-    }
-  });
-  return {bias, matrix};
-}
-
-function splitSentences(protectedText){
-  const lines = protectedText.split(/\n+/);
-  const sentences = [];
-  lines.forEach(line=>{
-    const stripped = line.replace(/^\s*[-*•]\s*|^\s*\d+[.)]\s*/,'').trim();
-    if(!stripped) return;
-    const parts = stripped.split(/(?<=[.!?])\s+/);
-    parts.forEach(p=>{
-      const s = unprotectText(p).trim();
-      if(s.length>3) sentences.push(s);
-    });
-  });
-  return sentences;
-}
-
-/* CHANGE 2: Enhanced Date & Time Parsing for Events */
-const DATE_RE = /\b(Today|Tomorrow|Yesterday|Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:tember)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)\s?\d{0,2}(?:,\s?\d{4})?\b/i;
-const TIME_RE = /\b\d{1,2}:\d{2}\s?(?:AM|PM|am|pm)?(?:\s?(?:ET|EST|EDT|GMT|UTC|IST))?\b/;
-
-function findDate(sentence){
-  const m = DATE_RE.exec(sentence);
-  if(m) return m[0];
-  if(/\b(overnight|pre-market|after close)\b/i.test(sentence)) return 'Today';
-  return 'Jul 21, 2026';
-}
-function findTime(sentence){
-  const m = TIME_RE.exec(sentence);
-  return m ? m[0] : 'Scheduled';
-}
-
-function extractEventsAndWatchlist(sentences){
-  const events = [], watchlist = [];
-  sentences.forEach((s, i)=>{
-    const dt = findDate(s);
-    const tm = findTime(s);
-    const isFuture = /\b(ahead of|upcoming|scheduled|tomorrow|will release|due to report)\b/i.test(s);
-    if(isFuture && watchlist.length < 8){
-      watchlist.push({ t:tm, e:trimToWords(s,12), f:'Consensus', imp:i%2===0?'High':'Medium', aa:'US Equities, Bonds' });
-    } else if(events.length < 8){
-      events.push({
-        cat: i%2===0?'Macro':'Central Bank',
-        date: dt,
-        t: tm,
-        h: trimToWords(s, 12),
-        w: 'Direct impact on yield expectations and risk sentiment',
-        aa: 'DXY, Gold, US Bonds',
-        imp: i%3===0?'High':'Medium'
-      });
-    }
-  });
-  return { events, watchlist };
-}
-
-/* CHANGE 1: TODAY'S EVENTS & IMPACT ANALYSIS SCENARIO GENERATOR */
-function extractTodaysEvents(sentences){
-  const todays = [];
-  sentences.forEach(s=>{
-    if(/\b(today|this morning|this afternoon|tonight|cpi|fed|rates|gdp|payrolls|pmi)\b/i.test(s) && todays.length < 4){
-      const t = findTime(s);
-      todays.push({
-        t: t !== 'Scheduled' ? t : '14:00 ET',
-        event: trimToWords(s, 8),
-        cons: 'As Expected',
-        posImpact: 'Rally in risk assets; yields and USD soften as easing sentiment builds.',
-        negImpact: 'Sell-off in equities & bonds; USD spikes on tighter monetary outlook.',
-        cat: 'Macro Release',
-        aa: 'US Equities, Gold, DXY'
-      });
-    }
-  });
-  if(!todays.length){
-    todays.push(
-      { t:'08:30 ET', event:'US Inflation Print', cons:'3.2% y/y', posImpact:'Equities & Gold rally; Treasury yields drop.', negImpact:'USD jumps; Equities slide on rate hike fears.', cat:'Macro', aa:'DXY, Gold, Bonds' },
-      { t:'14:00 ET', event:'FOMC Rate Decision', cons:'Hold 5.50%', posImpact:'Dovish stance boosts crypto & tech stocks.', negImpact:'Hawkish tone drags index futures lower.', cat:'Fed', aa:'US Equities, BTC' }
-    );
-  }
-  return todays;
-}
-
-/* CHANGE 3: CENTRALIZED BULLET SUMMARY & KEY NUMBERS EXTRACTION */
-function extractSummaryAndNumbers(sentences, protectedText){
-  const bullets = sentences.slice(0, 5).map(s => `<strong>Focus:</strong> ${s}`);
-  
-  const numbersTokens = extractNumberTokens(protectedText);
-  const keyNumbers = numbersTokens.slice(0, 8).map((tok, idx) => {
-    const ctx = windowAround(protectedText, tok.index, tok.end, 15, 35);
-    return {
-      val: tok.text,
-      lbl: `Metric #${idx+1}`,
-      ctx: trimToWords(ctx, 6)
-    };
-  });
-
-  return { summaryBullets: bullets, keyNumbers };
-}
-
-function extractIntelligenceLocal(rawText){
-  const normalized = rawText.replace(/\r\n/g,'\n').replace(/[\u201c\u201d]/g,'"').replace(/[\u2018\u2019]/g,"'").replace(/\u00A0/g,' ');
-  const protectedText = protectText(normalized);
-  const sentences = splitSentences(protectedText);
-  rawSentences = sentences;
-
-  const macro = extractMacro(protectedText);
-  const assets = extractAssets(protectedText);
-  const { events, watchlist } = extractEventsAndWatchlist(sentences);
-  const todaysEvents = extractTodaysEvents(sentences);
-  const { summaryBullets, keyNumbers } = extractSummaryAndNumbers(sentences, protectedText);
-
-  const pos = POS_DEFS.map(p=>({ id:p.id, label:p.label, v:'Neutral / Stable', tone:'neutral' }));
-  const narratives = [
-    { n:'Fed Rate Cut Bets', tone:'bullish', s:78, aa:'Gold, Bonds' },
-    { n:'Disinflation Trend', tone:'bullish', s:70, aa:'US Equities' },
-    { n:'Dollar Softening', tone:'bearish', s:62, aa:'DXY, Gold' }
-  ];
-
-  const meta = { source:'Pasted Feed', session:'Live Parsing', headline: sentences[0] ? trimToWords(sentences[0], 14) : 'Market Intelligence' };
-
-  return { meta, macro, bias:assets.bias, matrix:assets.matrix, pos, events, todaysEvents, summaryBullets, keyNumbers, narratives, watchlist };
-}
-
-function mergeWithPrevious(fresh, previousDataset){
-  const base = previousDataset || normalizeDataset({});
-  let foundCount = 0;
-
-  const macro = {};
-  MACRO_DEFS.forEach(m=>{
-    const f = fresh.macro[m.id];
-    if(f && f.cur){ macro[m.id]=f; foundCount++; } else { macro[m.id]=base.macro[m.id]; }
-  });
-
-  const bias = {}, matrix = {};
-  ASSET_DEFS.forEach(a=>{
-    const f = fresh.bias[a.id];
-    if(f && f.b){ bias[a.id]=f; matrix[a.id]=fresh.matrix[a.id]; foundCount++; }
-    else { bias[a.id]=base.bias[a.id]; matrix[a.id]=base.matrix[a.id]; }
-  });
-
-  const events = fresh.events.length ? fresh.events : base.events;
-  const todaysEvents = fresh.todaysEvents.length ? fresh.todaysEvents : base.todaysEvents;
-  const summaryBullets = fresh.summaryBullets.length ? fresh.summaryBullets : base.summaryBullets;
-  const keyNumbers = fresh.keyNumbers.length ? fresh.keyNumbers : base.keyNumbers;
-  const narratives = fresh.narratives.length ? fresh.narratives : base.narratives;
-  const watchlist = fresh.watchlist.length ? fresh.watchlist : base.watchlist;
-
-  foundCount += fresh.events.length + fresh.todaysEvents.length + fresh.keyNumbers.length;
-
-  return {
-    data: { meta: fresh.meta, macro, bias, matrix, pos: fresh.pos, events, todaysEvents, summaryBullets, keyNumbers, narratives, watchlist },
-    foundCount
-  };
-}
-
-/* ============================================================
-   SAMPLE DATASET
-   ============================================================ */
-const SAMPLE_DATASET = normalizeDataset({
-  meta:{ source:'Ashford Capital Sample Feed', session:'US Session Close', headline:'Fed rate cut bets firm up following disinflationary prints' },
-  macro:{
-    fed:{cur:'5.50%',prev:'5.50%',cons:'5.50%',d:'flat',note:'Held at cycle high'},
-    cpiH:{cur:'3.2%',prev:'3.4%',cons:'3.3%',d:'down',note:'Third straight cooling print'},
-    cpiC:{cur:'3.6%',prev:'3.8%',cons:'3.7%',d:'down',note:'Shelter costs easing'},
-    ppiH:{cur:'2.3%',prev:'2.5%',cons:'2.4%',d:'down',note:'Goods deflation persists'},
-    ppiC:{cur:'2.8%',prev:'2.9%',cons:'2.9%',d:'down',note:'Muted pipeline pressure'},
-    real:{cur:'1.90%',prev:'2.10%',cons:'',d:'down',note:'Falling as inflation cools'},
-    y2:{cur:'4.28%',prev:'4.41%',cons:'',d:'down',note:'Pricing faster 2026 cuts'},
-    y10:{cur:'4.02%',prev:'4.11%',cons:'',d:'down',note:'Bull-steepening curve'},
-    dxy:{cur:'103.4',prev:'104.6',cons:'',d:'down',note:'Broad dollar weakness'},
-    wti:{cur:'$78.20',prev:'$79.85',cons:'',d:'down',note:'Demand worries weigh'},
-    brent:{cur:'$82.40',prev:'$83.90',cons:'',d:'down',note:'Tracking WTI lower'},
-    vix:{cur:'14.2',prev:'15.6',cons:'',d:'down',note:'Vol compressed'},
-  },
-  bias:{
-    gold:{b:'Bullish',cf:82,pd:'Real yields falling, soft USD',br:'Hawkish FOMC surprise',nc:'FOMC Minutes'},
-    nifty:{b:'Bullish',cf:64,pd:'FII inflows resume on rate cuts',br:'Crude spike, FX pressure',nc:'RBI Policy'},
-    usEq:{b:'Neutral',cf:55,pd:'Soft-landing narrative intact',br:'Valuations stretched',nc:'Tech Earnings'},
-    usBonds:{b:'Bullish',cf:70,pd:'Disinflation supports duration',br:'Refunding supply overhang',nc:'10Y Auction'},
-    btc:{b:'Neutral',cf:48,pd:'Risk sentiment steady',br:'ETF flow deceleration',nc:'Options Expiry'},
-  },
-  todaysEvents:[
-    { t:'08:30 ET', event:'US Headline CPI Release', cons:'3.2% y/y', posImpact:'Inflation slows faster -> Rate cut expectations surge -> Stocks, Gold & Bonds surge.', negImpact:'Hotter CPI -> Fed hold extended -> USD rallies sharply, Stocks & Gold drop.', cat:'Macro', aa:'DXY, Gold, US Bonds' },
-    { t:'10:00 ET', event:'ISM Services PMI', cons:'52.4', posImpact:'Economic resilience without inflation -> Soft landing play -> S&P 500 gains.', negImpact:'Contraction print -> Growth concerns trigger risk-off rotation.', cat:'Economic', aa:'US Equities' },
-    { t:'14:00 ET', event:'FOMC Meeting Minutes', cons:'Dovish Tilt', posImpact:'Minutes confirm easing consensus -> Yields drop further, Gold breaks higher.', negImpact:'Minutes show inflation pushback -> Yields spike, pressure tech equities.', cat:'Central Bank', aa:'Gold, DXY, Bonds' }
-  ],
-  summaryBullets:[
-    '<strong>Inflation cooling:</strong> US CPI came in lower at 3.2%, signaling disinflation is continuing across core components.',
-    '<strong>Federal Reserve Stance:</strong> Markets are currently pricing in higher probability of rate cuts later this year.',
-    '<strong>Yields & Currency:</strong> 10-Year Treasury yields fell to 4.02%, while DXY softened towards 103.4.',
-    '<strong>Asset Dynamics:</strong> Gold remains bullish above support levels on safe-haven and rate-cut momentum.'
-  ],
-  keyNumbers:[
-    { val:'3.2%', lbl:'Headline CPI', ctx:'Down from 3.4% previously' },
-    { val:'4.02%', lbl:'10Y Treasury Yield', ctx:'Bull-steepening trend' },
-    { val:'103.4', lbl:'DXY Index', ctx:'Broad dollar weakness' },
-    { val:'$78.20', lbl:'WTI Crude', ctx:'Easing energy costs' },
-    { val:'5.50%', lbl:'Fed Funds Rate', ctx:'Upper bound target' },
-    { val:'14.2', lbl:'VIX Index', ctx:'Suppressed market volatility' }
-  ],
-  events:[
-    { cat:'Macro', date:'Jul 21, 2026', t:'08:30 ET', h:'Core CPI cools to 3.6% y/y, third straight decline', w:'Supports Fed easing narrative, pressures yields', aa:'US Bonds, Gold', imp:'High' },
-    { cat:'Central Bank', date:'Jul 21, 2026', t:'14:00 ET', h:'FOMC Minutes highlight disinflation progress', w:'Increases market consensus for rate cuts', aa:'DXY, Equities', imp:'High' },
-    { cat:'Corporate', date:'Jul 21, 2026', t:'After Close', h:'Mega-cap Tech beats earnings expectations', w:'Drives bullish momentum in NASDAQ futures', aa:'US Equities', imp:'Medium' }
-  ],
-  matrix:{
-    gold:{bd:'Falling real rates, weak USD',brd:'Hawkish Fed, risk-on',cd:'Real Rates',b:'Bullish',cf:82},
-    nifty:{bd:'FII inflows, global rate cuts',brd:'Crude spike',cd:'Global Rates',b:'Bullish',cf:64},
-    usEq:{bd:'Soft landing, tech earnings',brd:'Valuation stretch',cd:'Earnings',b:'Neutral',cf:55},
-    usBonds:{bd:'Disinflation, duration buying',brd:'Auction supply',cd:'Inflation',b:'Bullish',cf:70},
-    btc:{bd:'ETF inflows',brd:'Macro deleveraging',cd:'Risk Sentiment',b:'Neutral',cf:48},
-  },
-  pos:[
-    { id:'risk', label:'Risk On / Risk Off', v:'Risk-On Sentiment', tone:'bullish' },
-    { id:'inflation', label:'Inflation Theme', v:'Cooling Disinflation', tone:'bullish' },
-    { id:'growth', label:'Growth Theme', v:'Resilient Soft Landing', tone:'neutral' },
-    { id:'liquidity', label:'Liquidity Theme', v:'Ample Central Bank Support', tone:'bullish' },
-  ],
-  narratives:[
-    {n:'Fed Pivot',tone:'bullish',s:80,aa:'Gold, US Bonds, US Equities'},
-    {n:'Disinflation Trend',tone:'bullish',s:75,aa:'US Bonds, Gold'},
-    {n:'Dollar Weakness',tone:'bearish',s:68,aa:'Gold, Nifty, BTC'},
-  ],
-  watchlist:[
-    {t:'08:30 ET',e:'US PCE Inflation Index',f:'2.4% y/y',imp:'High',aa:'DXY, US Bonds'},
-    {t:'10:00 ET',e:'Consumer Confidence',f:'104.5',imp:'Medium',aa:'US Equities'},
-  ]
-});
-
-/* ============================================================
-   FORMATTERS & RENDERERS
-   ============================================================ */
-function fmtTime(d){ return d.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit', second:'2-digit'}); }
-function tickClock(){ const el = $('#liveClock'); if(el) el.textContent = fmtTime(new Date()) + ' local'; }
-
-function renderStatusPills(){
-  const pills = [];
-  if(dataset && isDemo) pills.push(`<span class="pill">Dataset: Demo</span>`);
-  else if(dataset && !isDemo) pills.push(`<span class="pill pill--live">Dataset: Live</span>`);
-  else pills.push(`<span class="pill">Dataset: Awaiting Data</span>`);
-  pills.push(`<span class="pill">Updated: ${lastUpdatedAt ? fmtTime(lastUpdatedAt) : '—'}</span>`);
-  pills.push(`<span class="pill">${isParsing ? 'Parsing…' : 'Parse: Idle'}</span>`);
-  $('#statusPills').innerHTML = pills.join('');
-}
-
-function renderMacroStrip(){
-  $('#macroStrip').innerHTML = MACRO_DEFS.map(def=>{
-    const v = dataset ? dataset.macro[def.id] : null;
-    const hasData = v && v.cur;
-    return `
-      <div class="kpi-tile clickable${hasData?'':' no-data'}" data-modal-type="macro-item" data-modal-id="${def.id}">
-        <span class="clickable-hint">EXPAND ⤢</span>
-        <div class="kpi-label">${esc(def.label)}</div>
-        <div class="kpi-value">${hasData? esc(v.cur) : '—'}</div>
-        <div class="kpi-meta">
-          <span class="mono">${hasData && v.prev ? 'Prev '+esc(v.prev) : ''}</span>
-          <span class="mono">${hasData && v.cons ? 'Cons '+esc(v.cons) : ''}</span>
+    <!-- Header -->
+    <header>
+        <h1>Ashford Capital | Market Intelligence</h1>
+        <div class="status-indicator">
+            <div class="status-dot"></div> Local Parsing Active
         </div>
-        <div class="kpi-cons">${hasData && v.note ? esc(v.note) : ''}</div>
-      </div>`;
-  }).join('');
-}
+    </header>
 
-function renderBiasStrip(){
-  $('#biasStrip').innerHTML = ASSET_DEFS.map(def=>{
-    const v = dataset ? dataset.bias[def.id] : null;
-    const hasData = v && v.b;
-    const biasKey = hasData ? v.b.toLowerCase() : 'none';
-    return `
-    <div class="bias-card clickable${hasData?'':' no-data'}" data-bias="${biasKey}" data-modal-type="bias-item" data-modal-id="${def.id}">
-      <span class="clickable-hint">EXPAND ⤢</span>
-      <div class="bias-head">
-        <span class="bias-asset">${esc(def.label)}</span>
-        <span class="bias-badge" data-bias="${biasKey}">${hasData? esc(v.b) : 'N/A'}</span>
-      </div>
-      <div>
-        <div class="conf-label"><span>Confidence</span><span>${hasData && v.cf!=null ? v.cf+'%' : '—'}</span></div>
-        <div class="conf-bar"><div class="conf-fill" style="width:${hasData && v.cf!=null ? v.cf : 0}%"></div></div>
-      </div>
-      <div class="bias-row"><span class="bias-k">Driver</span><span class="bias-v">${hasData && v.pd ? esc(v.pd) : '—'}</span></div>
-      <div class="bias-row"><span class="bias-k">Risk</span><span class="bias-v">${hasData && v.br ? esc(v.br) : '—'}</span></div>
-    </div>`;
-  }).join('');
-}
+    <!-- Main Terminal -->
+    <div class="terminal-container">
+        
+        <!-- Left Column: Data Ingestion -->
+        <div class="panel">
+            <h2>Raw Intelligence Input</h2>
+            <textarea id="raw-data-input" placeholder="Paste market intelligence, news reports, or macro event transcripts here for local parsing..."></textarea>
+            <button class="primary-btn" onclick="executeLocalParsing()">Parse Intelligence</button>
+        </div>
 
-/* CHANGE 1: RENDER TODAY'S EVENTS & IMPACT MATRIX */
-function renderTodaysEvents(){
-  const list = dataset ? dataset.todaysEvents : [];
-  if(!list.length){ $('#todaysEventsGrid').innerHTML = `<div class="empty-state">No specific releases detected for today.</div>`; return; }
-  $('#todaysEventsGrid').innerHTML = list.map((item, idx)=>`
-    <div class="today-event-card clickable" data-modal-type="today-event-item" data-modal-id="${idx}">
-      <span class="clickable-hint">EXPAND ⤢</span>
-      <div class="today-event-header">
-        <span class="today-event-title">${esc(item.event)}</span>
-        <span class="today-event-time">${esc(item.t)}</span>
-      </div>
-      <div class="today-event-meta">
-        <span>Category: <strong>${esc(item.cat)}</strong></span>
-        <span>Consensus: <strong>${esc(item.cons)}</strong></span>
-      </div>
-      <div class="scenario-box">
-        <div class="scenario-card pos">
-          <div class="scenario-title">▲ Positive / Beat Scenario</div>
-          <div class="scenario-desc">${esc(item.posImpact)}</div>
+        <!-- Right Column: Dashboard -->
+        <div class="dashboard-grid">
+            
+            <!-- Centralized Executive Summary -->
+            <div class="panel full-width">
+                <h2>Executive Summary</h2>
+                <div class="summary-preview-card" id="executive-summary-card" onclick="openSummaryModal()">
+                    <div class="preview-text" id="summary-short-text">
+                        Awaiting raw intelligence input. Paste data and click "Parse Intelligence" to generate summary.
+                    </div>
+                    <div class="click-indicator">Click to expand deep-context analysis &#8594;</div>
+                </div>
+            </div>
+
+            <!-- Macro Indicators Panel -->
+            <div class="panel">
+                <h2>Macro Indicators</h2>
+                <div id="macro-metrics">
+                    <div class="metric-row"><span class="metric-label">Core CPI</span> <span class="metric-val">--</span></div>
+                    <div class="metric-row"><span class="metric-label">Fed Funds Rate</span> <span class="metric-val">--</span></div>
+                    <div class="metric-row"><span class="metric-label">10Y Treasury</span> <span class="metric-val">--</span></div>
+                </div>
+            </div>
+
+            <!-- Institutional Positioning / Asset Bias -->
+            <div class="panel">
+                <h2>Asset Bias & Positioning</h2>
+                <div id="asset-metrics">
+                    <div class="metric-row"><span class="metric-label">Equities (SPX)</span> <span class="metric-val">--</span></div>
+                    <div class="metric-row"><span class="metric-label">Short-Duration</span> <span class="metric-val">--</span></div>
+                    <div class="metric-row"><span class="metric-label">Vol Index (VIX)</span> <span class="metric-val">--</span></div>
+                </div>
+            </div>
+
         </div>
-        <div class="scenario-card neg">
-          <div class="scenario-title">▼ Negative / Miss Scenario</div>
-          <div class="scenario-desc">${esc(item.negImpact)}</div>
-        </div>
-      </div>
     </div>
-  `).join('');
-}
 
-/* CHANGE 3: RENDER CENTRALIZED SUMMARY & KEY NUMBERS */
-function renderSummaryGrid(){
-  const bullets = dataset ? dataset.summaryBullets : [];
-  const numbers = dataset ? dataset.keyNumbers : [];
-
-  const bulletsHtml = `
-    <div class="summary-card clickable" data-modal-type="summary-bullets">
-      <span class="clickable-hint">EXPAND ⤢</span>
-      <div class="eyebrow">Executive Intelligence Summary</div>
-      <ul class="summary-bullet-list">
-        ${bullets.length ? bullets.map(b => `<li>${b}</li>`).join('') : '<li>Awaiting raw text intelligence to generate summary...</li>'}
-      </ul>
-    </div>`;
-
-  const numbersHtml = `
-    <div class="summary-card clickable" data-modal-type="summary-numbers">
-      <span class="clickable-hint">EXPAND ⤢</span>
-      <div class="eyebrow">Key Extracted Figures</div>
-      <div class="numbers-grid">
-        ${numbers.length ? numbers.map(n => `
-          <div class="number-item">
-            <div class="number-val">${esc(n.val)}</div>
-            <div class="number-lbl">${esc(n.lbl)}</div>
-            <div class="number-ctx">${esc(n.ctx)}</div>
-          </div>
-        `).join('') : '<div class="empty-state">No numbers extracted</div>'}
-      </div>
-    </div>`;
-
-  $('#summaryGrid').innerHTML = bulletsHtml + numbersHtml;
-}
-
-/* CHANGE 2: RENDER MARKET MOVING EVENTS (WITH DATE & TIME) */
-function renderEvents(){
-  const list = dataset ? dataset.events : [];
-  $('#eventsCount').textContent = list.length ? list.length + ' items' : '';
-  if(!list.length){ $('#eventsPanel').innerHTML = `<div class="empty-state">No market moving events available.</div>`; return; }
-  $('#eventsPanel').innerHTML = `<div class="timeline">` + list.map(e=>`
-    <div class="event-item">
-      <div class="event-time-col">
-        <span class="event-date-stamp">${esc(e.date)}</span>
-        <span>${esc(e.t)}</span>
-      </div>
-      <div class="event-body">
-        <div class="event-top">
-          <span class="event-cat">${esc(e.cat)}</span>
-          <span class="badge" data-imp="${esc(e.imp)}">${esc(e.imp)}</span>
+    <!-- Interactive Detail Modal (Universal Expandability) -->
+    <div class="modal-overlay" id="summary-modal" onclick="closeModalOnOverlayClick(event)">
+        <div class="modal-content" onclick="event.stopPropagation()">
+            <div class="modal-header">
+                <h3>Deep-Context Dataset Analysis</h3>
+                <button class="close-modal" onclick="closeSummaryModal()">&times;</button>
+            </div>
+            <div class="modal-body" id="summary-full-text">
+                <!-- Full untruncated content injected here -->
+            </div>
         </div>
-        <div class="event-headline">${esc(e.h)}</div>
-        ${e.w ? `<div class="event-why">${esc(e.w)}</div>` : ''}
-      </div>
-    </div>`).join('') + `</div>`;
-}
-
-function renderNarratives(){
-  const list = dataset ? dataset.narratives : [];
-  $('#narrativesCount').textContent = list.length ? list.length + ' active' : '';
-  if(!list.length){ $('#narrativesPanel').innerHTML = `<div class="empty-state">No active narratives.</div>`; return; }
-  $('#narrativesPanel').innerHTML = `<div class="narrative-grid">` + list.map(n=>`
-    <div class="narrative-card">
-      <div class="narrative-top"><span class="narrative-name">${esc(n.n)}</span><span class="badge" data-tone="${esc(n.tone)}">${esc(n.tone)}</span></div>
-      <div class="narrative-bar"><div class="narrative-fill" data-tone="${esc(n.tone)}" style="width:${n.s}%"></div></div>
-      <div class="narrative-assets">${esc(n.aa)}</div>
-    </div>`).join('') + `</div>`;
-}
-
-function renderWatchlist(){
-  const full = dataset ? dataset.watchlist : [];
-  $('#watchlistCount').textContent = full.length ? full.length + ' items' : '';
-  if(!full.length){ $('#watchlistPanel').innerHTML = `<div class="empty-state">No upcoming watchlist items.</div>`; return; }
-  $('#watchlistPanel').innerHTML = `
-    <table class="data-table">
-      <thead><tr><th>Time</th><th>Event</th><th>Forecast</th><th>Importance</th></tr></thead>
-      <tbody>${full.map(w=>`
-        <tr>
-          <td class="mono">${esc(w.t)}</td>
-          <td class="strong">${esc(w.e)}</td>
-          <td class="mono">${esc(w.f)}</td>
-          <td><span class="badge" data-imp="${esc(w.imp)}">${esc(w.imp)}</span></td>
-        </tr>`).join('')}</tbody>
-    </table>`;
-}
-
-function renderMacroTable(){
-  $('#macroTableCount').textContent = dataset ? MACRO_DEFS.length + ' indicators' : '';
-  if(!dataset) return;
-  $('#macroTablePanel').innerHTML = `
-    <table class="data-table">
-      <thead><tr><th>Indicator</th><th>Latest</th><th>Previous</th><th>Consensus</th></tr></thead>
-      <tbody>${MACRO_DEFS.map(def=>{
-        const r = dataset.macro[def.id] || {};
-        return `<tr>
-          <td class="strong">${esc(def.label)}</td>
-          <td class="mono">${esc(r.cur)}</td>
-          <td class="mono">${esc(r.prev)}</td>
-          <td class="mono">${esc(r.cons)}</td>
-        </tr>`;
-      }).join('')}</tbody>
-    </table>`;
-}
-
-function renderMatrix(){
-  if(!dataset) return;
-  $('#matrixPanel').innerHTML = `
-    <table class="data-table">
-      <thead><tr><th>Asset</th><th>Current Driver</th><th>Bias</th></tr></thead>
-      <tbody>${ASSET_DEFS.map(def=>{
-        const v = dataset.matrix[def.id] || {};
-        return `<tr>
-          <td class="matrix-asset">${esc(def.label)}</td>
-          <td>${esc(v.cd||'—')}</td>
-          <td><span class="badge" data-tone="${(v.b||'').toLowerCase()}">${esc(v.b||'N/A')}</span></td>
-        </tr>`;
-      }).join('')}</tbody>
-    </table>`;
-}
-
-function renderPositioning(){
-  if(!dataset) return;
-  $('#positioningPanel').innerHTML = dataset.pos.map(p=>`
-    <div class="pos-row">
-      <span class="pos-label">${esc(p.label)}</span>
-      <span class="pos-value"><span class="pos-dot" data-tone="${esc(p.tone)}"></span><span class="pos-text">${esc(p.v)}</span></span>
-    </div>`).join('');
-}
-
-function renderRiskGauge(){
-  $('#gaugeWrap').innerHTML = `<div class="gauge-score" style="color:var(--bull)">+45</div><div class="gauge-caption">Composite Sentiment Score</div>`;
-}
-
-function renderAll(){
-  renderStatusPills();
-  renderMacroStrip();
-  renderBiasStrip();
-  renderTodaysEvents();
-  renderSummaryGrid();
-  renderEvents();
-  renderNarratives();
-  renderWatchlist();
-  renderMacroTable();
-  renderMatrix();
-  renderPositioning();
-  renderRiskGauge();
-}
-
-/* ============================================================
-   CHANGE 4: INTERACTIVE DETAIL VIEW & EXPLAINABILITY MODAL
-   ============================================================ */
-function openModal(type, id = null){
-  const modal = $('#detailModal');
-  const catEl = $('#modalCategory');
-  const titleEl = $('#modalTitle');
-  const bodyEl = $('#modalBody');
-
-  catEl.textContent = 'SECTION FULL VIEW & EXPLAINABILITY LOGIC';
-  let title = 'Section Detail';
-  let explainText = '';
-  let fullContentHtml = '';
-
-  if(type === 'macro-item' && id){
-    const def = MACRO_DEFS.find(m=>m.id===id);
-    const item = dataset.macro[id];
-    title = `Macro Breakdown: ${def.label}`;
-    explainText = `Extracted directly from context tokens using pattern matcher for <strong>${def.label}</strong>. Cross-referenced current print (${item.cur||'N/A'}) against previous value (${item.prev||'N/A'}) and consensus forecast (${item.cons||'N/A'}).`;
-    fullContentHtml = `
-      <div class="number-item" style="margin-bottom:12px;">
-        <div class="number-val">${item.cur || 'N/A'}</div>
-        <div class="number-lbl">Current Reading (Prev: ${item.prev||'—'} | Cons: ${item.cons||'—'})</div>
-        <div class="number-ctx">${item.note || 'No notes available'}</div>
-      </div>
-      <div class="modal-section-title">Context Sentences</div>
-      <ul class="modal-sentence-list">
-        ${rawSentences.filter(s=>new RegExp(def.label, 'i').test(s) || new RegExp(id, 'i').test(s)).map(s=>`<li class="modal-sentence-item">${s}</li>`).join('') || '<li class="modal-sentence-item">Loaded from structured dataset.</li>'}
-      </ul>
-    `;
-  }
-  else if(type === 'bias-item' && id){
-    const def = ASSET_DEFS.find(a=>a.id===id);
-    const item = dataset.bias[id];
-    title = `Market Bias Rationale: ${def.label}`;
-    explainText = `Bias derived from keyword sentiment weighting across context windows. Bullish sentiment factors: <strong>${item.pd||'None'}</strong>. Bearish risks: <strong>${item.br||'None'}</strong>. Confidence rating calculated at <strong>${item.cf||50}%</strong>.`;
-    fullContentHtml = `
-      <div style="display:flex; gap:12px; margin-bottom:14px;">
-        <span class="badge" data-tone="${(item.b||'').toLowerCase()}" style="font-size:12px; padding:4px 10px;">${item.b || 'N/A'} BIAS</span>
-        <span class="pill">Confidence: ${item.cf || '—'}%</span>
-      </div>
-      <div class="modal-section-title">Primary Driver Context</div>
-      <p style="color:var(--text);">${item.pd || 'No specific driver extracted.'}</p>
-      <div class="modal-section-title">Key Downside Risk</div>
-      <p style="color:var(--text);">${item.br || 'No key risk highlighted.'}</p>
-    `;
-  }
-  else if(type === 'today-event-item' && id !== null){
-    const item = dataset.todaysEvents[id];
-    title = `Scenario Model: ${item.event}`;
-    explainText = `Comprehensive breakdown of expected release impacts for today. Formulated to provide instant directional guidance depending on whether actual release beats or misses consensus (${item.cons}).`;
-    fullContentHtml = `
-      <div style="margin-bottom:12px; font-size:12px;">Scheduled Release Time: <strong>${item.t}</strong> | Category: <strong>${item.cat}</strong></div>
-      <div class="scenario-box" style="margin-bottom:16px;">
-        <div class="scenario-card pos" style="padding:12px;">
-          <div class="scenario-title" style="font-size:11px;">▲ Positive / Beat Outcome Scenario</div>
-          <div class="scenario-desc" style="font-size:12px; color:var(--text); margin-top:4px;">${item.posImpact}</div>
-        </div>
-        <div class="scenario-card neg" style="padding:12px;">
-          <div class="scenario-title" style="font-size:11px;">▼ Negative / Miss Outcome Scenario</div>
-          <div class="scenario-desc" style="font-size:12px; color:var(--text); margin-top:4px;">${item.negImpact}</div>
-        </div>
-      </div>
-    `;
-  }
-  else if(type === 'summary-bullets' || type === 'summary-numbers'){
-    title = `Centralized Content & Extracted Figures Full View`;
-    explainText = `Centralized view synthesizing raw text inputs. Extracts all numerical data points, percentage metrics, monetary amounts, and core headlines for centralized inspection.`;
-    fullContentHtml = `
-      <div class="modal-section-title">Executive Summary Bullets</div>
-      <ul class="summary-bullet-list" style="margin-bottom:16px;">
-        ${dataset.summaryBullets.map(b=>`<li>${b}</li>`).join('') || '<li>No summary bullets generated.</li>'}
-      </ul>
-      <div class="modal-section-title">Full Raw Sentences Stream</div>
-      <ul class="modal-sentence-list">
-        ${rawSentences.map(s=>`<li class="modal-sentence-item">${s}</li>`).join('') || '<li class="modal-sentence-item">Loaded from dataset.</li>'}
-      </ul>
-    `;
-  }
-  else {
-    title = `Panel View: ${type.replace('-panel','').replace('-',' ').toUpperCase()}`;
-    explainText = `Full context representation for this terminal section. Displays all extracted parameters, context sentences, and logic explanations.`;
-    fullContentHtml = `
-      <div class="modal-section-title">Extracted Raw Text Sentences</div>
-      <ul class="modal-sentence-list">
-        ${rawSentences.length ? rawSentences.map(s=>`<li class="modal-sentence-item">${s}</li>`).join('') : '<li class="modal-sentence-item">Viewing full section detail. All active signals processed locally.</li>'}
-      </ul>
-    `;
-  }
-
-  titleEl.textContent = title;
-  bodyEl.innerHTML = `
-    <div class="explain-box">
-      <div class="explain-box-title">Explainability & Context Logic</div>
-      <div class="explain-box-body">${explainText}</div>
     </div>
-    ${fullContentHtml}
-  `;
 
-  modal.classList.remove('hidden');
-}
+    <!-- Terminal Logic -->
+    <script>
+        // Main function triggered by the 'Parse Intelligence' button
+        function executeLocalParsing() {
+            const rawText = document.getElementById('raw-data-input').value;
+            
+            if (!rawText.trim()) {
+                alert("Please paste data into the input field to parse.");
+                return;
+            }
 
-function wireClickHandlers(){
-  document.addEventListener('click', e => {
-    const clickable = e.target.closest('.clickable');
-    if(clickable){
-      const type = clickable.getAttribute('data-modal-type');
-      const id = clickable.getAttribute('data-modal-id');
-      if(type) openModal(type, id);
-    }
-  });
+            processExecutiveSummary(rawText);
+            simulateDataExtraction(rawText); // Fills out the rest of the dashboard
+        }
 
-  $('#modalCloseBtn').addEventListener('click', () => $('#detailModal').classList.add('hidden'));
-  $('#detailModal').addEventListener('click', e => {
-    if(e.target === $('#detailModal')) $('#detailModal').classList.add('hidden');
-  });
-}
+        // Modular Expansion Logic for the Summary
+        function processExecutiveSummary(rawPastedText) {
+            // 1. Generate short preview (Extracts first 2 sentences via Regex)
+            const sentences = rawPastedText.split(/(?<=\.)\s+/);
+            const shortPreview = sentences.slice(0, 2).join(' ') + (sentences.length > 2 ? '...' : '');
+            
+            // 2. Inject preview into the dashboard card
+            document.getElementById('summary-short-text').innerText = shortPreview;
+            
+            // 3. Format and inject full untruncated dataset into the modal
+            document.getElementById('summary-full-text').innerHTML = rawPastedText
+                .split('\n')
+                .filter(para => para.trim() !== '')
+                .map(paragraph => `<p>${paragraph}</p>`)
+                .join('');
+        }
 
-/* ============================================================
-   ERROR BANNER
-   ============================================================ */
-function showError(msg){ $('#errorText').textContent = msg; $('#errorBanner').classList.remove('hidden'); }
-function clearError(){ $('#errorBanner').classList.add('hidden'); }
+        // Modal Control Functions
+        function openSummaryModal() {
+            // Only open if there is data
+            const currentPreview = document.getElementById('summary-short-text').innerText;
+            if(currentPreview.includes("Awaiting raw intelligence")) return;
+            
+            document.getElementById('summary-modal').style.display = 'flex';
+        }
 
-/* ============================================================
-   PASTE & INITIALIZATION
-   ============================================================ */
-async function handleNewIntelligence(rawText){
-  if(isParsing) return;
-  if(!rawText || rawText.trim().length < 20){ showError('Paste more complete intelligence text — input looks too short to parse.'); return; }
-  isParsing = true;
-  clearError();
-  renderStatusPills();
-  $('#retryBtn').classList.add('spin');
-  try{
-    await new Promise(r=>setTimeout(r, 200));
-    const rawExtracted = extractIntelligenceLocal(rawText);
-    const fresh = normalizeDataset(rawExtracted);
-    const { data, foundCount } = mergeWithPrevious(fresh, dataset);
-    dataset = data;
-    isDemo = false;
-    lastUpdatedAt = new Date();
-    lastFoundCount = foundCount;
-    renderAll();
-    $('#pasteZone').value = '';
-  }catch(err){
-    console.error(err);
-    showError('Parsing failed — please try again with different text.');
-  }finally{
-    isParsing = false;
-    $('#retryBtn').classList.remove('spin');
-    renderStatusPills();
-  }
-}
+        function closeSummaryModal() {
+            document.getElementById('summary-modal').style.display = 'none';
+        }
 
-function wireEvents(){
-  const pasteZone = $('#pasteZone');
-  pasteZone.addEventListener('paste', ()=>{
-    setTimeout(()=>{
-      const text = pasteZone.value.trim();
-      if(text.length >= 20) handleNewIntelligence(text);
-    }, 30);
-  });
+        function closeModalOnOverlayClick(event) {
+            if (event.target.id === 'summary-modal') {
+                closeSummaryModal();
+            }
+        }
 
-  $('#retryBtn').addEventListener('click', ()=>{
-    const text = pasteZone.value.trim();
-    if(text) handleNewIntelligence(text);
-  });
+        // Mock function to simulate the terminal parsing specific metrics from the text
+        function simulateDataExtraction(text) {
+            const t = text.toLowerCase();
+            
+            // Mock Macro Update
+            document.getElementById('macro-metrics').innerHTML = `
+                <div class="metric-row"><span class="metric-label">Core CPI</span> <span class="metric-val ${t.includes('cpi') ? 'val-up' : 'val-neutral'}">${t.includes('cpi') ? '+0.2%' : 'Unchanged'}</span></div>
+                <div class="metric-row"><span class="metric-label">Fed Funds Rate</span> <span class="metric-val val-neutral">5.25 - 5.50%</span></div>
+                <div class="metric-row"><span class="metric-label">10Y Treasury</span> <span class="metric-val ${t.includes('yield') ? 'val-up' : 'val-down'}">${t.includes('yield') ? '4.12%' : '3.98%'}</span></div>
+            `;
 
-  $('#sampleBtn').addEventListener('click', ()=>{
-    dataset = SAMPLE_DATASET; isDemo = true; lastUpdatedAt = new Date();
-    clearError(); renderAll();
-  });
+            // Mock Asset Update
+            document.getElementById('asset-metrics').innerHTML = `
+                <div class="metric-row"><span class="metric-label">Equities (SPX)</span> <span class="metric-val ${t.includes('defensive') ? 'val-down' : 'val-up'}">${t.includes('defensive') ? 'Bearish Bias' : 'Bullish Bias'}</span></div>
+                <div class="metric-row"><span class="metric-label">Short-Duration</span> <span class="metric-val val-up">Overweight</span></div>
+                <div class="metric-row"><span class="metric-label">Vol Index (VIX)</span> <span class="metric-val ${t.includes('volatility') ? 'val-up' : 'val-neutral'}">${t.includes('volatility') ? 'Elevated' : 'Stable'}</span></div>
+            `;
+        }
+    </script>
 
-  $('#errorDismiss').addEventListener('click', clearError);
-  wireClickHandlers();
-}
-
-async function init(){
-  tickClock();
-  setInterval(tickClock, 1000);
-  dataset = SAMPLE_DATASET;
-  isDemo = true;
-  lastUpdatedAt = new Date();
-  renderAll();
-  wireEvents();
-}
-document.addEventListener('DOMContentLoaded', init);
-</script>
 </body>
 </html>
