@@ -428,6 +428,44 @@ button{ font-family:inherit; }
 .btn--action { border-color: var(--macro); color: var(--macro); }
 .btn--action:hover { background: var(--macro-dim); }
 
+/* ---- Global Search Header & Modal Styles ---- */
+.header-search-wrap { display: flex; align-items: center; gap: 8px; background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); padding: 4px 8px; margin-right: 12px; }
+.header-search-input { background: transparent; border: none; outline: none; color: var(--text); font-family: var(--font-sans); font-size: 11.5px; width: 140px; }
+.header-search-btn { background: transparent; border: none; color: var(--text-dim); cursor: pointer; font-size: 14px; display: flex; align-items: center; justify-content: center; padding: 0 4px; }
+.header-search-btn:hover { color: var(--macro); }
+
+.search-results-list { display: flex; flex-direction: column; gap: 10px; max-height: 400px; overflow-y: auto; padding-right: 4px; }
+.search-result-block { background: var(--bg-inset); border: 1px solid var(--border-soft); border-left: 3px solid var(--macro); border-radius: var(--radius); padding: 10px 12px; }
+.search-result-title { font-weight: 600; font-size: 12px; color: var(--text); margin-bottom: 4px; display: flex; justify-content: space-between; align-items: center; }
+.search-result-date { font-family: var(--font-mono); font-size: 9.5px; color: var(--text-faint); }
+.search-result-text { font-size: 11.5px; color: var(--text-dim); line-height: 1.5; }
+
+/* ---- Custom Floating Chatbot Widget (Bottom Right) ---- */
+.chatbot-fab { position: fixed; bottom: 20px; right: 20px; width: 44px; height: 44px; border-radius: 50%; background: var(--macro); color: #fff; display: flex; align-items: center; justify-content: center; font-size: 20px; cursor: pointer; box-shadow: 0 4px 16px rgba(0,0,0,0.4); z-index: 150; border: none; transition: transform 0.2s; }
+.chatbot-fab:hover { transform: scale(1.05); }
+.chatbot-window { position: fixed; bottom: 74px; right: 20px; width: 340px; height: 450px; background: var(--card); border: 1px solid var(--border); border-radius: 4px; display: flex; flex-direction: column; box-shadow: 0 10px 30px rgba(0,0,0,0.5); z-index: 150; overflow: hidden; }
+.chatbot-header { display: flex; align-items: center; justify-content: space-between; padding: 10px 14px; border-bottom: 1px solid var(--border); background: var(--card-raised); }
+.chatbot-title { font-weight: 600; font-size: 11.5px; letter-spacing: 0.8px; text-transform: uppercase; color: var(--text); }
+.chatbot-close { background: transparent; border: none; color: var(--text-faint); font-size: 18px; cursor: pointer; padding: 0 4px; }
+.chatbot-close:hover { color: var(--text); }
+.chatbot-messages { flex: 1; overflow-y: auto; padding: 12px; display: flex; flex-direction: column; gap: 10px; }
+.chatbot-msg { max-width: 85%; padding: 8px 10px; border-radius: var(--radius); font-size: 11.5px; line-height: 1.45; word-wrap: break-word; }
+.chatbot-msg--bot { background: var(--bg-inset); color: var(--text); border: 1px solid var(--border-soft); align-self: flex-start; }
+.chatbot-msg--user { background: var(--macro-dim); color: var(--text); border: 1px solid rgba(67,128,250,0.3); align-self: flex-end; }
+.chatbot-loading { display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: var(--text-faint); margin: 0 2px; animation: bounce 0.6s infinite alternate; }
+.chatbot-loading:nth-child(2) { animation-delay: 0.2s; }
+.chatbot-loading:nth-child(3) { animation-delay: 0.4s; }
+@keyframes bounce { to { transform: translateY(-4px); } }
+
+.chatbot-input-wrap { display: flex; border-top: 1px solid var(--border); padding: 8px; background: var(--card-raised); }
+.chatbot-input { flex: 1; background: var(--bg-inset); border: 1px solid var(--border); border-radius: var(--radius); color: var(--text); font-size: 11.5px; padding: 6px 10px; outline: none; }
+.chatbot-input:focus { border-color: var(--macro); }
+.chatbot-send-btn { background: transparent; border: none; color: var(--macro); padding: 0 8px 0 12px; cursor: pointer; font-size: 14px; }
+.chatbot-send-btn:hover { color: var(--text); }
+
+/* ---- File Upload Button Styles ---- */
+.file-upload-btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; cursor: pointer; height: 100%; }
+
 .term-footer{ margin-top:26px; padding-top:14px; border-top:1px solid var(--border-soft); display:flex; justify-content:space-between; font-size:10px; color:var(--text-faint); letter-spacing:0.3px; flex-wrap:wrap; gap:6px; }
 
 /* ============================================================
@@ -458,7 +496,13 @@ button{ font-family:inherit; }
       <div class="brand-title">Market Intelligence Terminal</div>
     </div>
     <div class="header-right">
-      <div class="live-clock" id="liveClock">—</div>
+      <div style="display:flex; align-items:center; gap: 10px; flex-wrap:wrap; justify-content:flex-end;">
+        <div class="header-search-wrap">
+          <input type="text" class="header-search-input" id="globalSearchInput" placeholder="Global Search (Enter)..." />
+          <button class="header-search-btn" id="globalSearchBtn" title="Search keyword in news & terminal">🔍</button>
+        </div>
+        <div class="live-clock" id="liveClock">—</div>
+      </div>
       <div class="status-pills" id="statusPills"></div>
     </div>
   </header>
@@ -468,6 +512,12 @@ button{ font-family:inherit; }
       <span class="prompt-glyph">▍</span>
       <textarea id="pasteZone" rows="1" placeholder="Paste raw market intelligence to refresh the terminal — parses automatically, no submit needed…"></textarea>
     </label>
+    <button class="btn-icon" id="fileUploadBtn" title="Upload PDF, Word, or TXT reports" style="display:flex; align-items:center; justify-content:center; padding:0;">
+      <label class="file-upload-btn" for="fileUploadInput" style="cursor:pointer; display:flex; align-items:center; justify-content:center; width:100%; height:100%;">
+        📁
+        <input type="file" id="fileUploadInput" accept=".txt,.docx,.pdf" style="display:none;" />
+      </label>
+    </button>
     <button class="btn-icon" id="retryBtn" title="Re-run parse on current input" aria-label="Re-run parse">⟳</button>
     <button class="btn" id="sampleBtn" title="Load sample dataset to preview the layout">Load Sample</button>
     <button class="btn btn--action" id="saveSessionBtn" title="Save current state to history">Save Session</button>
