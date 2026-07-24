@@ -7,6 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <style>
 /* ============================================================
    DESIGN TOKENS
@@ -385,6 +386,48 @@ button{ font-family:inherit; }
 .detail-impact-card.up{ background:var(--bear-dim); border:1px solid rgba(242,69,61,0.25); color:var(--text-dim); }
 .detail-impact-card.down{ background:var(--bull-dim); border:1px solid rgba(47,191,113,0.25); color:var(--text-dim); }
 
+/* ---- Highlighting and custom controls for enhancements ---- */
+.hl-keyword { background: rgba(67, 128, 250, 0.25); color: #fff; padding: 0 2px; border-radius: 2px; border-bottom: 1px solid var(--macro); }
+.hl-number { background: rgba(232, 197, 71, 0.25); color: #fff; padding: 0 2px; border-radius: 2px; border-bottom: 1px solid var(--warn); }
+.comment-box { width: 100%; min-height: 60px; background: var(--bg-inset); border: 1px solid var(--border); border-radius: var(--radius); color: var(--text); padding: 8px; font-family: var(--font-sans); font-size: 11.5px; resize: vertical; margin-top: 6px; }
+.comment-box:focus { border-color: var(--macro); outline: none; }
+.comment-save-btn { font-size: 10px; font-weight: 600; text-transform: uppercase; padding: 4px 10px; margin-top: 6px; cursor: pointer; border: 1px solid var(--border); background: var(--card-raised); color: var(--text-dim); border-radius: var(--radius); }
+.comment-save-btn:hover { border-color: var(--macro); color: var(--text); }
+
+/* ---- Layout Sidebar/Tabs for historical and analytics panels ---- */
+.layout-container { display: flex; gap: var(--gap); margin-top: var(--gap); }
+.layout-sidebar { width: 280px; flex-shrink: 0; display: flex; flex-direction: column; gap: var(--gap); }
+.layout-main-content { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: var(--gap); }
+
+/* ---- Feed Simulator component ---- */
+.feed-box { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); padding: 12px; }
+.feed-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+.feed-select { background: var(--bg-inset); border: 1px solid var(--border); color: var(--text); padding: 6px; font-size: 11.5px; border-radius: var(--radius); width: 100%; outline: none; }
+.feed-select:focus { border-color: var(--macro); }
+
+/* ---- Saved Sessions List ---- */
+.session-item { display: flex; align-items: center; justify-content: space-between; padding: 8px 10px; border-radius: var(--radius); border: 1px solid var(--border-soft); background: var(--bg-inset); margin-bottom: 6px; cursor: pointer; transition: background 0.15s; }
+.session-item:hover { background: var(--card-raised); }
+.session-info { display: flex; flex-direction: column; gap: 2px; flex: 1; min-width: 0; }
+.session-name { font-size: 11.5px; font-weight: 500; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.session-meta { font-size: 9.5px; color: var(--text-faint); }
+.session-actions { display: flex; gap: 4px; }
+.session-btn { background: transparent; border: none; color: var(--text-faint); cursor: pointer; font-size: 13px; padding: 2px 4px; }
+.session-btn:hover { color: var(--bear); }
+
+/* ---- Analytical Charting Dashboard ---- */
+.chart-container { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); padding: 12px; display: flex; flex-direction: column; gap: 10px; }
+.chart-canvas-wrap { position: relative; height: 180px; width: 100%; }
+
+/* ---- Settings / Custom Config panel ---- */
+.settings-grid { display: grid; grid-template-columns: 1fr; gap: 8px; max-height: 300px; overflow-y: auto; padding: 4px; }
+.settings-row { display: flex; align-items: center; gap: 6px; border-bottom: 1px solid var(--border-soft); padding-bottom: 6px; }
+.settings-input { background: var(--bg-inset); border: 1px solid var(--border); color: var(--text); font-family: var(--font-mono); font-size: 11px; padding: 4px 6px; border-radius: var(--radius); flex: 1; min-width: 0; }
+
+/* ---- Button states ---- */
+.btn--action { border-color: var(--macro); color: var(--macro); }
+.btn--action:hover { background: var(--macro-dim); }
+
 .term-footer{ margin-top:26px; padding-top:14px; border-top:1px solid var(--border-soft); display:flex; justify-content:space-between; font-size:10px; color:var(--text-faint); letter-spacing:0.3px; flex-wrap:wrap; gap:6px; }
 
 /* ============================================================
@@ -427,6 +470,9 @@ button{ font-family:inherit; }
     </label>
     <button class="btn-icon" id="retryBtn" title="Re-run parse on current input" aria-label="Re-run parse">⟳</button>
     <button class="btn" id="sampleBtn" title="Load sample dataset to preview the layout">Load Sample</button>
+    <button class="btn btn--action" id="saveSessionBtn" title="Save current state to history">Save Session</button>
+    <button class="btn" id="exportBriefBtn" title="Export Daily Intelligence Briefing">Export Brief</button>
+    <button class="btn" id="toggleSettingsBtn" title="Configure dynamic asset and indicator parameters">Settings</button>
   </div>
 
   <div class="error-banner hidden" id="errorBanner">
@@ -434,11 +480,63 @@ button{ font-family:inherit; }
     <button id="errorDismiss" aria-label="Dismiss">×</button>
   </div>
 
-  <div class="section-label">Session Summary</div>
-  <section class="panel">
-    <div class="panel-head"><span class="panel-title">Session Summary</span><span class="panel-count" id="summaryCount"></span></div>
-    <div class="summary-body" id="summaryPanel"></div>
-  </section>
+  <!-- Dynamic Settings Panel -->
+  <div id="settingsPanel" class="panel hidden" style="margin-bottom: var(--gap); padding: var(--gap);">
+    <div class="panel-head" style="padding: 0 0 10px 0; margin-bottom: 10px; border-bottom: 1px solid var(--border);"><span class="panel-title">Custom Asset & Indicator Settings</span></div>
+    <div class="settings-grid" id="settingsGrid"></div>
+    <div style="margin-top: 10px; display: flex; gap: 8px;">
+      <button class="btn" id="saveSettingsBtn">Apply & Save Settings</button>
+      <button class="btn" id="resetSettingsBtn">Reset to Defaults</button>
+    </div>
+  </div>
+
+  <div class="layout-container">
+    <!-- Sidebar for saved history vault and news feed simulator -->
+    <aside class="layout-sidebar">
+      <div class="section-label" style="margin-top:0;">Intelligence Streams</div>
+      <div class="feed-box">
+        <div class="feed-header">
+          <span class="eyebrow">Simulate Intelligence</span>
+        </div>
+        <select class="feed-select" id="feedSimulator">
+          <option value="">-- Select Simulated Intelligence Stream --</option>
+          <option value="cpi">CPI Day (Cooling Inflation & Dovish Repricing)</option>
+          <option value="fed">FOMC Interest Rate Hold (Hawkish Bias & Yield Push)</option>
+          <option value="opec">OPEC Supply Shock (Oil Spike & Commodity Pressures)</option>
+          <option value="calm">Calm Summer Markets (Range-Bound Activity)</option>
+        </select>
+      </div>
+
+      <div class="section-label">Session Vault</div>
+      <div class="panel" style="flex:1;">
+        <div class="panel-head" style="padding: 8px 12px;"><span class="panel-title">Saved Histories</span></div>
+        <div class="panel-body" style="padding: 6px; max-height: 250px; overflow-y:auto;" id="savedSessionsList">
+          <div class="empty-state" style="padding:15px;">No saved history vaults found.</div>
+        </div>
+      </div>
+      
+      <div class="section-label">Quantitative Charts</div>
+      <div class="chart-container">
+        <span class="eyebrow" style="margin-bottom: 2px;">Asset Confidence Comparisons</span>
+        <div class="chart-canvas-wrap">
+          <canvas id="confidenceChart"></canvas>
+        </div>
+      </div>
+      <div class="chart-container">
+        <span class="eyebrow" style="margin-bottom: 2px;">Narrative Trend Strengths</span>
+        <div class="chart-canvas-wrap">
+          <canvas id="narrativeChart"></canvas>
+        </div>
+      </div>
+    </aside>
+
+    <!-- Main Content Panel Area -->
+    <div class="layout-main-content">
+      <div class="section-label" style="margin-top:0;">Session Summary</div>
+      <section class="panel">
+        <div class="panel-head"><span class="panel-title">Session Summary</span><span class="panel-count" id="summaryCount"></span></div>
+        <div class="summary-body" id="summaryPanel"></div>
+      </section>
 
   <div class="section-label">Macro Status</div>
   <section class="macro-grid" id="macroStrip"></section>
@@ -491,6 +589,9 @@ button{ font-family:inherit; }
     </div>
   </section>
 
+    </div> <!-- Close layout-main-content -->
+  </div> <!-- Close layout-container -->
+
   <footer class="term-footer">
     <span>Parsed instantly in your browser · nothing you paste ever leaves this device</span>
     <span id="footerRight">Ashford Capital — internal use</span>
@@ -515,7 +616,7 @@ button{ font-family:inherit; }
 /* ============================================================
    CONFIG — fixed schema definitions (order matters, matches spec)
    ============================================================ */
-const MACRO_DEFS = [
+let MACRO_DEFS = [
   {id:'fed',   label:'Fed Funds Rate'},
   {id:'cpiH',  label:'Headline CPI'},
   {id:'cpiC',  label:'Core CPI'},
@@ -529,13 +630,24 @@ const MACRO_DEFS = [
   {id:'brent', label:'Brent'},
   {id:'vix',   label:'VIX'},
 ];
-const ASSET_DEFS = [
+let ASSET_DEFS = [
   {id:'gold',     label:'Gold'},
   {id:'nifty',    label:'Nifty'},
   {id:'usEq',     label:'US Equities'},
   {id:'usBonds',  label:'US Bonds'},
   {id:'btc',      label:'Bitcoin'},
 ];
+
+// Load customized configurations if saved in localStorage
+try {
+  const savedMacros = localStorage.getItem('ashford_custom_macros');
+  const savedAssets = localStorage.getItem('ashford_custom_assets');
+  if (savedMacros) MACRO_DEFS = JSON.parse(savedMacros);
+  if (savedAssets) ASSET_DEFS = JSON.parse(savedAssets);
+} catch(e) {
+  console.warn('Failed to load custom configs from localStorage', e);
+}
+
 const POS_DEFS = [
   {id:'risk',      label:'Risk On / Risk Off'},
   {id:'inflation', label:'Inflation Theme'},
@@ -1802,16 +1914,29 @@ const EXPLAIN_TEXT = {
   'risk-gauge': 'A weighted average of every asset\u2019s bias (Bullish +1 / Neutral 0 / Bearish \u22121), weighted by that asset\u2019s confidence score, rescaled to \u2212100…+100.',
   summary: 'Bullet points are the highest-scoring sentences from the most recently parsed text — the same scoring used to build Market Moving Events, just with a lower bar so the recap stays comprehensive. A thin follow-up paste won\u2019t overwrite a substantial existing summary.',
 };
+function highlightSourceText(src) {
+  if (!src) return '';
+  let escaped = esc(src);
+  const numRegex = /(-?\$?\d[\d,]*(\.\d+)?%?\s?(?:bps|bp|bbl)?)/g;
+  escaped = escaped.replace(numRegex, '<span class="hl-number">$1</span>');
+  const keywordRegex = /\b(Fed|FOMC|Reserve|Powell|cpi|ppi|yields?|rate|cuts?|hikes?|gold|nifty|bitcoin|btc|dollar|dxy|crude|oil|wti|brent|vix|bullish|bearish|disinflation|hawkish|dovish|inflation|growth|liquidity|rally|selloff|recession)\b/gi;
+  escaped = escaped.replace(keywordRegex, '<span class="hl-keyword">$1</span>');
+  return escaped;
+}
+
 function detailRow(k, v){ return `<div class="detail-row"><span class="detail-k">${esc(k)}</span><span class="detail-v">${v}</span></div>`; }
 function detailSourceBlock(src){
   const fallback = isDemo
     ? 'This is the sample preview dataset, not something extracted from pasted text — load your own text to see a real source excerpt here.'
     : 'Not found in the pasted text \u2014 this value is either still showing an earlier paste\u2019s data, or hasn\u2019t been mentioned yet.';
-  return `<div class="detail-section-title">Source Text</div><div class="detail-source">${src ? '\u201C'+esc(src)+'\u201D' : fallback}</div>`;
+  return `<div class="detail-section-title">Source Text</div><div class="detail-source">${src ? '“' + highlightSourceText(src) + '”' : fallback}</div>`;
 }
 function detailExplainBlock(type){
   return `<div class="detail-section-title">Why This Shows What It Shows</div><div class="detail-explain">${EXPLAIN_TEXT[type]||''}</div>`;
 }
+
+let activeSessionId = null; // tracking active history session
+
 function openDetail(type, id){
   if(!dataset) return;
   let eyebrow='', title='', body='';
@@ -1880,7 +2005,32 @@ function openDetail(type, id){
     const b = dataset.summary.bullets[id];
     eyebrow='Session Summary'; title='Recap Point';
     body = detailRow('Bullet', b?esc(b):'—') + detailExplainBlock('summary');
+  } else if(type==='export'){
+    eyebrow='Reporting & Export Center'; title='Daily Intelligence Briefing';
+    const rawBrief = generateBriefingText();
+    body = `
+      <div style="display:flex; gap: 8px; margin-bottom: 12px;">
+        <button class="btn btn--action" onclick="window.triggerJsonExport()">Download JSON</button>
+        <button class="btn btn--action" onclick="window.triggerCsvExport()">Download CSV</button>
+        <button class="btn" onclick="window.copyBriefingToClipboard()">Copy to Clipboard</button>
+      </div>
+      <textarea class="comment-box" id="briefingTextArea" readonly style="height: 350px; font-family: var(--font-mono); font-size:11px; line-height:1.45; white-space:pre;">${esc(rawBrief)}</textarea>
+    `;
   } else { return; }
+
+  // Append analyst commentary block if it's a standard detail type
+  if (type !== 'export' && type !== 'risk-gauge' && type !== 'summary') {
+    const commentKey = type + '_' + id;
+    const currentComment = activeCommentOverrides[commentKey] || '';
+    body += `
+      <div class="detail-section-title" style="margin-top: 15px;">Desk Commentary & Overrides</div>
+      <textarea class="comment-box" id="detailCommentBox" placeholder="Add custom analyst notes, desk overrides, or commentary for this metric...">${esc(currentComment)}</textarea>
+      <div style="display:flex; justify-content: flex-end;">
+        <button class="comment-save-btn" onclick="window.saveAnalystComment('${commentKey}')">Save Commentary</button>
+      </div>
+    `;
+  }
+
   $('#detailEyebrow').textContent = eyebrow;
   $('#detailTitle').textContent = title;
   $('#detailBody').innerHTML = body;
@@ -1926,6 +2076,7 @@ async function handleNewIntelligence(rawText){
       lastUpdatedAt = new Date();
       lastFoundCount = foundCount;
       renderAll();
+      if (typeof updateCharts === 'function') updateCharts();
       persistDataset(dataset, false);
       $('#pasteZone').value = '';
       $('#pasteZone').style.height = '';
@@ -1937,6 +2088,504 @@ async function handleNewIntelligence(rawText){
     isParsing = false;
     $('#retryBtn').classList.remove('spin');
     renderStatusPills();
+  }
+}
+
+/* ============================================================
+   ENHANCEMENTS - SAVED SESSIONS VAULT
+   ============================================================ */
+const SESSIONS_STORAGE_KEY = 'ashford_terminal_saved_sessions';
+let activeCommentOverrides = {}; // active session analyst comments (detail-id -> text)
+
+function getSavedSessions() {
+  try {
+    const raw = localStorage.getItem(SESSIONS_STORAGE_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch(e) {
+    console.error('Failed to load saved sessions', e);
+    return [];
+  }
+}
+
+function saveSessions(sessions) {
+  try {
+    localStorage.setItem(SESSIONS_STORAGE_KEY, JSON.stringify(sessions));
+  } catch(e) {
+    console.error('Failed to save sessions', e);
+  }
+}
+
+function saveCurrentSession() {
+  if (!dataset) {
+    showError('No active dataset to save. Please load a sample or paste a briefing.');
+    return;
+  }
+  const sessions = getSavedSessions();
+  const timestamp = Date.now();
+  const dateStr = new Date().toISOString().slice(0, 19).replace('T', ' ');
+  const headline = dataset.meta.headline || 'Market Briefing';
+  const name = prompt('Enter a name for this saved session:', `Briefing - ${headline} (${dateStr})`);
+  if (name === null) return; // user cancelled
+  
+  const newSession = {
+    id: timestamp,
+    name: name || `Briefing - ${dateStr}`,
+    timestamp: timestamp,
+    dataset: dataset,
+    commentOverrides: activeCommentOverrides || {}
+  };
+  sessions.push(newSession);
+  saveSessions(sessions);
+  renderSavedSessions();
+}
+
+function loadSavedSession(id) {
+  const sessions = getSavedSessions();
+  const session = sessions.find(s => s.id === id);
+  if (!session) {
+    showError('Session not found.');
+    return;
+  }
+  dataset = session.dataset;
+  isDemo = false;
+  lastUpdatedAt = new Date(session.timestamp);
+  lastFoundCount = null;
+  
+  // Apply any saved comment overrides
+  activeCommentOverrides = session.commentOverrides || {};
+  
+  renderAll();
+  updateCharts();
+  
+  // Highlight loaded session card in UI
+  const items = document.querySelectorAll('.session-item');
+  items.forEach(el => {
+    if (parseInt(el.getAttribute('data-id')) === id) {
+      el.style.borderColor = 'var(--macro)';
+    } else {
+      el.style.borderColor = 'var(--border-soft)';
+    }
+  });
+}
+
+function deleteSavedSession(id, event) {
+  if (event) event.stopPropagation();
+  if (!confirm('Are you sure you want to delete this session?')) return;
+  let sessions = getSavedSessions();
+  sessions = sessions.filter(s => s.id !== id);
+  saveSessions(sessions);
+  renderSavedSessions();
+}
+
+function renderSavedSessions() {
+  const listEl = $('#savedSessionsList');
+  if (!listEl) return;
+  const sessions = getSavedSessions();
+  if (sessions.length === 0) {
+    listEl.innerHTML = `<div class="empty-state" style="padding:15px;">No saved history vaults found.</div>`;
+    return;
+  }
+  
+  listEl.innerHTML = sessions.map(s => {
+    const dStr = new Date(s.timestamp).toLocaleDateString() + ' ' + new Date(s.timestamp).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
+    return `
+      <div class="session-item" data-id="${s.id}" onclick="window.loadSavedSession(${s.id})">
+        <div class="session-info">
+          <div class="session-name" title="${esc(s.name)}">${esc(s.name)}</div>
+          <div class="session-meta">${dStr}</div>
+        </div>
+        <div class="session-actions">
+          <button class="session-btn" onclick="window.deleteSavedSession(${s.id}, event)" title="Delete session">×</button>
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+// Bind to window for HTML onclick attributes
+window.loadSavedSession = loadSavedSession;
+window.deleteSavedSession = deleteSavedSession;
+
+/* ============================================================
+   ENHANCEMENTS - LIVE NEWS FEED SIMULATOR
+   ============================================================ */
+const SIMULATED_FEEDS = {
+  cpi: `FLASH: Headline CPI cooled to 2.9% y/y in October, down from 3.1% in September and beating the 3.0% consensus. Core CPI also eased to 3.4% vs 3.5% prior. Treasury yields fell sharply on the news, with the 10Y yield sliding to 3.85% and the 2Y yield crashing to 4.10%. The Federal Funds Rate remains at 5.50% but markets are now pricing in a 25bps cut in November with 90% confidence. DXY fell to 101.8 on broad dollar weakness, supporting gold to a fresh high of $2045. WTI crude stabilized at $74.50. US equities rallied strongly with S&P 500 up 1.2% led by growth stocks. Bitcoin rose to $64,500 amid risk-on flows. Nifty 50 surged as FII inflows resumed on rate-cut bets.`,
+  fed: `FED UPDATE: The Federal Reserve held the Federal Funds Rate steady at 5.50% this afternoon. However, the dot plot and Chairman Powell's commentary delivered a hawkish surprise, emphasizing that rates must stay higher-for-longer as sticky inflation remains a persistent risk. Core inflation measures are still elevated, and the Fed is prepared to raise rates further if needed. The 10Y Treasury yield spiked to 4.45% and the 2Y yield rose to 4.85%. DXY surged to 105.8, putting heavy pressure on commodities and gold which plunged to $1950. US equities slumped on the hawkish tone, with the S&P 500 down 1.4%. Bitcoin suffered a selloff, sliding to $58,200 as liquidity expectations tightened. Volatility spiked, with the VIX rising to 18.2.`,
+  opec: `COMMODITY ALERT: OPEC+ announced a surprise voluntary production cut of 1.2 million barrels per day through Q1, triggering a massive supply shock. WTI crude spiked to $88.50 a barrel, and Brent surged to $92.00, raising serious concerns over sticky inflation. Headline PPI is expected to accelerate next month on the back of rising energy costs. Bond markets reacted negatively, with the 10Y yield rising to 4.25% as inflation expectations firmed. The dollar index (DXY) held steady at 104.2. Gold was supported as a safe-haven asset, rising to $2010 despite higher yields. Nifty 50 was under pressure, falling 0.8% as a higher crude price weighs on the Indian currency and stokes domestic inflation.`,
+  calm: `MIDDAY WRAP: Calm summer trading persists across global desks with minimal volume and a range-bound layout. S&P 500 held steady, unchanged on the day. The Federal Funds Rate is unchanged at 5.50%, and no major macro releases are scheduled until next week's retail sales data. The 10Y Treasury yield was flat at 4.12%, while the 2Y yield hovered at 4.38%. The dollar index (DXY) was steady at 103.1, keeping gold consolidation intact near $1985. WTI crude hovered at $77.80. Bitcoin consolidated near $61,200 with decelerating ETF flows, while Nifty 50 closed flat. The VIX fell to a three-month low of 12.5, highlighting the complete compression of volatility.`
+};
+
+function triggerSimulation(type) {
+  if (!type || !SIMULATED_FEEDS[type]) return;
+  const text = SIMULATED_FEEDS[type];
+  const pasteZone = $('#pasteZone');
+  if (pasteZone) {
+    pasteZone.value = text;
+    pasteZone.style.height = 'auto';
+    pasteZone.style.height = pasteZone.scrollHeight + 'px';
+  }
+  handleNewIntelligence(text);
+}
+
+/* ============================================================
+   ENHANCEMENTS - ANALYTICAL CHARTING HUB
+   ============================================================ */
+let confidenceChartInstance = null;
+let narrativeChartInstance = null;
+
+function updateCharts() {
+  if (typeof Chart === 'undefined') {
+    console.warn('Chart.js is not loaded.');
+    return;
+  }
+  if (!dataset) return;
+  
+  // 1. CONFIDENCE CHART
+  const confCanvas = document.getElementById('confidenceChart');
+  if (confCanvas) {
+    if (confidenceChartInstance) {
+      confidenceChartInstance.destroy();
+    }
+    
+    const labels = ASSET_DEFS.map(def => def.label);
+    const data = ASSET_DEFS.map(def => {
+      const b = dataset.bias[def.id];
+      return b && b.cf != null ? b.cf : 0;
+    });
+    const colors = ASSET_DEFS.map(def => {
+      const b = dataset.bias[def.id];
+      if (!b || !b.b) return '#252D38';
+      const tone = b.b.toLowerCase();
+      if (tone === 'bullish') return '#2FBF71';
+      if (tone === 'bearish') return '#F2453D';
+      return '#F0A63D';
+    });
+    
+    confidenceChartInstance = new Chart(confCanvas, {
+      type: 'bar',
+      data: {
+        labels: labels,
+        datasets: [{
+          data: data,
+          backgroundColor: colors,
+          borderColor: 'transparent',
+          borderWidth: 0,
+          barPercentage: 0.6
+        }]
+      },
+      options: {
+        indexAxis: 'y',
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            callbacks: {
+              label: (ctx) => `Confidence: ${ctx.raw}%`
+            }
+          }
+        },
+        scales: {
+          x: {
+            min: 0,
+            max: 100,
+            grid: { color: '#1B222C' },
+            ticks: { color: '#8D96A6', font: { size: 9, family: 'IBM Plex Mono' } }
+          },
+          y: {
+            grid: { display: false },
+            ticks: { color: '#EDF1F7', font: { size: 9, family: 'IBM Plex Sans' } }
+          }
+        }
+      }
+    });
+  }
+  
+  // 2. NARRATIVE CHART
+  const narrCanvas = document.getElementById('narrativeChart');
+  if (narrCanvas) {
+    if (narrativeChartInstance) {
+      narrativeChartInstance.destroy();
+    }
+    
+    const narratives = dataset.narratives || [];
+    const labels = narratives.map(n => n.n);
+    const data = narratives.map(n => n.s);
+    const colors = narratives.map(n => {
+      const tone = n.tone ? n.tone.toLowerCase() : 'neutral';
+      if (tone === 'bullish') return '#2FBF71';
+      if (tone === 'bearish') return '#F2453D';
+      if (tone === 'macro') return '#4380FA';
+      if (tone === 'warning') return '#E8C547';
+      return '#F0A63D';
+    });
+    
+    narrativeChartInstance = new Chart(narrCanvas, {
+      type: 'bar',
+      data: {
+        labels: labels.length ? labels : ['No Active Narratives'],
+        datasets: [{
+          data: data.length ? data : [0],
+          backgroundColor: colors.length ? colors : ['#252D38'],
+          barPercentage: 0.6
+        }]
+      },
+      options: {
+        indexAxis: 'y',
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            callbacks: {
+              label: (ctx) => `Strength: ${ctx.raw}%`
+            }
+          }
+        },
+        scales: {
+          x: {
+            min: 0,
+            max: 100,
+            grid: { color: '#1B222C' },
+            ticks: { color: '#8D96A6', font: { size: 9, family: 'IBM Plex Mono' } }
+          },
+          y: {
+            grid: { display: false },
+            ticks: { color: '#EDF1F7', font: { size: 9, family: 'IBM Plex Sans' } }
+          }
+        }
+      }
+    });
+  }
+}
+window.updateCharts = updateCharts;
+
+/* ============================================================
+   ENHANCEMENTS - COMMENTARY & EXPORTER CENTRE
+   ============================================================ */
+function saveAnalystComment(key) {
+  const box = document.getElementById('detailCommentBox');
+  if (!box) return;
+  const val = box.value.trim();
+  activeCommentOverrides[key] = val;
+  
+  if (activeSessionId) {
+    const sessions = getSavedSessions();
+    const idx = sessions.findIndex(s => s.id === activeSessionId);
+    if (idx !== -1) {
+      sessions[idx].commentOverrides = activeCommentOverrides;
+      saveSessions(sessions);
+    }
+  }
+  alert('Commentary saved successfully!');
+}
+
+function downloadFile(content, fileName, contentType) {
+  const a = document.createElement("a");
+  const file = new Blob([content], {type: contentType});
+  a.href = URL.createObjectURL(file);
+  a.download = fileName;
+  a.click();
+}
+
+function triggerJsonExport() {
+  if (!dataset) return;
+  downloadFile(JSON.stringify(dataset, null, 2), 'ashford_terminal_export.json', 'application/json');
+}
+
+function triggerCsvExport() {
+  if (!dataset) return;
+  let csv = "Indicator,Latest,Previous,Consensus,Trend,Interpretation\n";
+  MACRO_DEFS.forEach(m => {
+    const v = dataset.macro[m.id];
+    if (v) {
+      csv += `"${m.label}","${v.cur || ''}","${v.prev || ''}","${v.cons || ''}","${v.d || ''}","${v.note || ''}"\n`;
+    }
+  });
+  downloadFile(csv, 'ashford_macro_indicators.csv', 'text/csv');
+}
+
+function generateBriefingText() {
+  if (!dataset) return 'No active briefing data available.';
+  const dateStr = new Date(lastUpdatedAt || Date.now()).toLocaleString();
+  const headline = dataset.meta.headline || 'Market Intelligence Briefing';
+  const source = dataset.meta.source || 'Internal Desk';
+  const session = dataset.meta.session || 'Active Session';
+  
+  let brief = `ASHFORD CAPITAL — DAILY INTELLIGENCE BRIEFING\n`;
+  brief += `===========================================\n`;
+  brief += `Generated: ${dateStr}\n`;
+  brief += `Source: ${source} | Session: ${session}\n`;
+  brief += `Headline: ${headline}\n\n`;
+  
+  brief += `SESSION SUMMARY BULLETS:\n`;
+  const bullets = dataset.summary.bullets || [];
+  if (bullets.length) {
+    bullets.forEach(b => { brief += `• ${b}\n`; });
+  } else {
+    brief += `No bullets extracted.\n`;
+  }
+  brief += `\n`;
+  
+  brief += `KEY MACRO INDICATORS:\n`;
+  MACRO_DEFS.forEach(m => {
+    const v = dataset.macro[m.id];
+    if (v && v.cur) {
+      const arrow = v.d === 'up' ? '▲' : v.d === 'down' ? '▼' : '▬';
+      brief += `- ${m.label}: ${v.cur} (Prev: ${v.prev || 'N/A'}, Trend: ${arrow}) — ${v.note || ''}\n`;
+    }
+  });
+  brief += `\n`;
+  
+  brief += `ASSET BIAS & DRIVERS:\n`;
+  ASSET_DEFS.forEach(a => {
+    const v = dataset.bias[a.id];
+    if (v && v.b) {
+      brief += `- ${a.label}: [${v.b}] (Confidence: ${v.cf}%)\n`;
+      brief += `  Driver: ${v.pd || 'N/A'}\n`;
+      brief += `  Risk: ${v.br || 'N/A'}\n`;
+    }
+  });
+  
+  return brief;
+}
+
+function copyBriefingToClipboard() {
+  const briefArea = document.getElementById('briefingTextArea');
+  if (!briefArea) return;
+  briefArea.select();
+  try {
+    document.execCommand('copy');
+    alert('Briefing text copied to your clipboard!');
+  } catch (err) {
+    alert('Failed to copy. Please manually copy the selected text inside the box.');
+  }
+}
+
+// Bind to window for HTML onclick attributes
+window.saveAnalystComment = saveAnalystComment;
+window.triggerJsonExport = triggerJsonExport;
+window.triggerCsvExport = triggerCsvExport;
+window.copyBriefingToClipboard = copyBriefingToClipboard;
+
+/* ============================================================
+   ENHANCEMENTS - CUSTOM SETTINGS MANAGER
+   ============================================================ */
+const DEFAULT_MACRO_DEFS = [
+  {id:'fed',   label:'Fed Funds Rate'},
+  {id:'cpiH',  label:'Headline CPI'},
+  {id:'cpiC',  label:'Core CPI'},
+  {id:'ppiH',  label:'Headline PPI'},
+  {id:'ppiC',  label:'Core PPI'},
+  {id:'real',  label:'Real Rate'},
+  {id:'y2',    label:'2Y Yield'},
+  {id:'y10',   label:'10Y Yield'},
+  {id:'dxy',   label:'DXY'},
+  {id:'wti',   label:'WTI'},
+  {id:'brent', label:'Brent'},
+  {id:'vix',   label:'VIX'},
+];
+const DEFAULT_ASSET_DEFS = [
+  {id:'gold',     label:'Gold'},
+  {id:'nifty',    label:'Nifty'},
+  {id:'usEq',     label:'US Equities'},
+  {id:'usBonds',  label:'US Bonds'},
+  {id:'btc',      label:'Bitcoin'},
+];
+
+function renderSettingsInputs() {
+  const grid = $('#settingsGrid');
+  if (!grid) return;
+  
+  let html = `<div style="font-weight: 600; color: var(--macro); margin-bottom: 6px;">Macro Indicators Configuration:</div>`;
+  MACRO_DEFS.forEach(m => {
+    html += `
+      <div class="settings-row">
+        <span class="mono" style="width: 80px; color: var(--text-faint);">${esc(m.id)}:</span>
+        <input class="settings-input" type="text" data-type="macro" data-id="${esc(m.id)}" value="${esc(m.label)}" placeholder="Indicator Label" />
+      </div>
+    `;
+  });
+  
+  html += `<div style="font-weight: 600; color: var(--macro); margin-top: 15px; margin-bottom: 6px;">Assets Configuration:</div>`;
+  ASSET_DEFS.forEach(a => {
+    html += `
+      <div class="settings-row">
+        <span class="mono" style="width: 80px; color: var(--text-faint);">${esc(a.id)}:</span>
+        <input class="settings-input" type="text" data-type="asset" data-id="${esc(a.id)}" value="${esc(a.label)}" placeholder="Asset Label" />
+      </div>
+    `;
+  });
+  
+  grid.innerHTML = html;
+}
+
+function applySettings() {
+  const inputs = document.querySelectorAll('.settings-input');
+  const nextMacros = [];
+  const nextAssets = [];
+  
+  inputs.forEach(input => {
+    const type = input.getAttribute('data-type');
+    const id = input.getAttribute('data-id');
+    const label = input.value.trim() || id;
+    if (type === 'macro') {
+      nextMacros.push({ id, label });
+    } else if (type === 'asset') {
+      nextAssets.push({ id, label });
+    }
+  });
+  
+  if (nextMacros.length) MACRO_DEFS = nextMacros;
+  if (nextAssets.length) ASSET_DEFS = nextAssets;
+  
+  localStorage.setItem('ashford_custom_macros', JSON.stringify(MACRO_DEFS));
+  localStorage.setItem('ashford_custom_assets', JSON.stringify(ASSET_DEFS));
+  
+  // Re-run dynamic mappings in case defs changed
+  if (dataset) {
+    dataset = normalizeDataset(dataset); // update dataset matching the new schemas
+  }
+  
+  renderAll();
+  updateCharts();
+  
+  $('#settingsPanel').classList.add('hidden');
+  alert('Settings successfully applied!');
+}
+
+function resetSettings() {
+  if (!confirm('Are you sure you want to reset all indicator and asset configurations to default?')) return;
+  
+  MACRO_DEFS = [...DEFAULT_MACRO_DEFS];
+  ASSET_DEFS = [...DEFAULT_ASSET_DEFS];
+  
+  localStorage.removeItem('ashford_custom_macros');
+  localStorage.removeItem('ashford_custom_assets');
+  
+  if (dataset) {
+    dataset = normalizeDataset(dataset);
+  }
+  
+  renderSettingsInputs();
+  renderAll();
+  updateCharts();
+  
+  $('#settingsPanel').classList.add('hidden');
+  alert('Configurations reset to industrial defaults!');
+}
+
+function toggleSettingsPanel() {
+  const panel = $('#settingsPanel');
+  if (panel) {
+    const isHidden = panel.classList.contains('hidden');
+    if (isHidden) {
+      renderSettingsInputs();
+      panel.classList.remove('hidden');
+    } else {
+      panel.classList.add('hidden');
+    }
   }
 }
 
@@ -1966,7 +2615,51 @@ function wireEvents(){
   $('#sampleBtn').addEventListener('click', ()=>{
     dataset = SAMPLE_DATASET; isDemo = true; lastUpdatedAt = new Date(); lastFoundCount = null;
     clearError(); renderAll(); persistDataset(dataset, true);
+    if (typeof updateCharts === 'function') updateCharts();
   });
+
+  $('#saveSessionBtn').addEventListener('click', () => {
+    saveCurrentSession();
+  });
+
+  const exportBriefBtn = $('#exportBriefBtn');
+  if (exportBriefBtn) {
+    exportBriefBtn.addEventListener('click', () => {
+      if (!dataset) {
+        showError('No active dataset to export. Please load sample or paste briefing.');
+        return;
+      }
+      openDetail('export', 'briefing');
+    });
+  }
+
+  const toggleSettingsBtn = $('#toggleSettingsBtn');
+  if (toggleSettingsBtn) {
+    toggleSettingsBtn.addEventListener('click', () => {
+      toggleSettingsPanel();
+    });
+  }
+
+  const saveSettingsBtn = $('#saveSettingsBtn');
+  if (saveSettingsBtn) {
+    saveSettingsBtn.addEventListener('click', () => {
+      applySettings();
+    });
+  }
+
+  const resetSettingsBtn = $('#resetSettingsBtn');
+  if (resetSettingsBtn) {
+    resetSettingsBtn.addEventListener('click', () => {
+      resetSettings();
+    });
+  }
+
+  const feedSimulator = $('#feedSimulator');
+  if (feedSimulator) {
+    feedSimulator.addEventListener('change', (e) => {
+      triggerSimulation(e.target.value);
+    });
+  }
 
   $('#errorDismiss').addEventListener('click', clearError);
 
@@ -2003,6 +2696,7 @@ async function init(){
   tickClock();
   setInterval(tickClock, 1000);
   renderAll();
+  renderSavedSessions();
   wireEvents();
   try{
     const persisted = await loadPersisted();
@@ -2011,6 +2705,7 @@ async function init(){
       isDemo = !!persisted.demo;
       lastUpdatedAt = persisted.savedAt ? new Date(persisted.savedAt) : new Date();
       renderAll();
+      if (typeof updateCharts === 'function') updateCharts();
     }
   }catch(e){ console.warn('no persisted dataset', e); }
 }
