@@ -8,6 +8,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js"></script>
 <style>
 /* ============================================================
    DESIGN TOKENS
@@ -428,44 +429,6 @@ button{ font-family:inherit; }
 .btn--action { border-color: var(--macro); color: var(--macro); }
 .btn--action:hover { background: var(--macro-dim); }
 
-/* ---- Global Search Header & Modal Styles ---- */
-.header-search-wrap { display: flex; align-items: center; gap: 8px; background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); padding: 4px 8px; margin-right: 12px; }
-.header-search-input { background: transparent; border: none; outline: none; color: var(--text); font-family: var(--font-sans); font-size: 11.5px; width: 140px; }
-.header-search-btn { background: transparent; border: none; color: var(--text-dim); cursor: pointer; font-size: 14px; display: flex; align-items: center; justify-content: center; padding: 0 4px; }
-.header-search-btn:hover { color: var(--macro); }
-
-.search-results-list { display: flex; flex-direction: column; gap: 10px; max-height: 400px; overflow-y: auto; padding-right: 4px; }
-.search-result-block { background: var(--bg-inset); border: 1px solid var(--border-soft); border-left: 3px solid var(--macro); border-radius: var(--radius); padding: 10px 12px; }
-.search-result-title { font-weight: 600; font-size: 12px; color: var(--text); margin-bottom: 4px; display: flex; justify-content: space-between; align-items: center; }
-.search-result-date { font-family: var(--font-mono); font-size: 9.5px; color: var(--text-faint); }
-.search-result-text { font-size: 11.5px; color: var(--text-dim); line-height: 1.5; }
-
-/* ---- Custom Floating Chatbot Widget (Bottom Right) ---- */
-.chatbot-fab { position: fixed; bottom: 20px; right: 20px; width: 44px; height: 44px; border-radius: 50%; background: var(--macro); color: #fff; display: flex; align-items: center; justify-content: center; font-size: 20px; cursor: pointer; box-shadow: 0 4px 16px rgba(0,0,0,0.4); z-index: 150; border: none; transition: transform 0.2s; }
-.chatbot-fab:hover { transform: scale(1.05); }
-.chatbot-window { position: fixed; bottom: 74px; right: 20px; width: 340px; height: 450px; background: var(--card); border: 1px solid var(--border); border-radius: 4px; display: flex; flex-direction: column; box-shadow: 0 10px 30px rgba(0,0,0,0.5); z-index: 150; overflow: hidden; }
-.chatbot-header { display: flex; align-items: center; justify-content: space-between; padding: 10px 14px; border-bottom: 1px solid var(--border); background: var(--card-raised); }
-.chatbot-title { font-weight: 600; font-size: 11.5px; letter-spacing: 0.8px; text-transform: uppercase; color: var(--text); }
-.chatbot-close { background: transparent; border: none; color: var(--text-faint); font-size: 18px; cursor: pointer; padding: 0 4px; }
-.chatbot-close:hover { color: var(--text); }
-.chatbot-messages { flex: 1; overflow-y: auto; padding: 12px; display: flex; flex-direction: column; gap: 10px; }
-.chatbot-msg { max-width: 85%; padding: 8px 10px; border-radius: var(--radius); font-size: 11.5px; line-height: 1.45; word-wrap: break-word; }
-.chatbot-msg--bot { background: var(--bg-inset); color: var(--text); border: 1px solid var(--border-soft); align-self: flex-start; }
-.chatbot-msg--user { background: var(--macro-dim); color: var(--text); border: 1px solid rgba(67,128,250,0.3); align-self: flex-end; }
-.chatbot-loading { display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: var(--text-faint); margin: 0 2px; animation: bounce 0.6s infinite alternate; }
-.chatbot-loading:nth-child(2) { animation-delay: 0.2s; }
-.chatbot-loading:nth-child(3) { animation-delay: 0.4s; }
-@keyframes bounce { to { transform: translateY(-4px); } }
-
-.chatbot-input-wrap { display: flex; border-top: 1px solid var(--border); padding: 8px; background: var(--card-raised); }
-.chatbot-input { flex: 1; background: var(--bg-inset); border: 1px solid var(--border); border-radius: var(--radius); color: var(--text); font-size: 11.5px; padding: 6px 10px; outline: none; }
-.chatbot-input:focus { border-color: var(--macro); }
-.chatbot-send-btn { background: transparent; border: none; color: var(--macro); padding: 0 8px 0 12px; cursor: pointer; font-size: 14px; }
-.chatbot-send-btn:hover { color: var(--text); }
-
-/* ---- File Upload Button Styles ---- */
-.file-upload-btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; cursor: pointer; height: 100%; }
-
 .term-footer{ margin-top:26px; padding-top:14px; border-top:1px solid var(--border-soft); display:flex; justify-content:space-between; font-size:10px; color:var(--text-faint); letter-spacing:0.3px; flex-wrap:wrap; gap:6px; }
 
 /* ============================================================
@@ -647,6 +610,24 @@ button{ font-family:inherit; }
     <span id="footerRight">Ashford Capital — internal use</span>
   </footer>
 
+</div>
+
+<!-- Floating Chatbot Widget (Bottom Right) -->
+<button class="chatbot-fab" id="chatbotToggleBtn" title="Chat with Ashford Terminal Assistant">💬</button>
+<div class="chatbot-window hidden" id="chatbotWindow">
+  <div class="chatbot-header">
+    <span class="chatbot-title">Ashford Assistant</span>
+    <button class="chatbot-close" id="chatbotCloseBtn" aria-label="Close">×</button>
+  </div>
+  <div class="chatbot-messages" id="chatbotMessages">
+    <div class="chatbot-msg chatbot-msg--bot">
+      Hello! I am your Ashford terminal assistant. Ask me any questions about the current visualizations, indicators, or uploaded report context.
+    </div>
+  </div>
+  <div class="chatbot-input-wrap">
+    <input type="text" class="chatbot-input" id="chatbotInput" placeholder="Ask a question..." />
+    <button class="chatbot-send-btn" id="chatbotSendBtn" title="Send message">➤</button>
+  </div>
 </div>
 
 <div class="detail-overlay hidden" id="detailOverlay">
@@ -2640,6 +2621,377 @@ function toggleSettingsPanel() {
 }
 
 /* ============================================================
+   ENHANCEMENTS - GEMINI SUMMARIZER
+   ============================================================ */
+window.activeStrategicConclusions = [
+  "Strategic Note: Local rules-based parser initialized. Connect with Gemini to render deep summaries.",
+  "Asset Driver: Core correlation matrix ready to map indices, yields, and metals."
+];
+
+async function fetchGeminiSummary(text) {
+  if (!text) return;
+  const key = "AQ.Ab8RN6KKXWXtzxPQHS83oT9t88qMcublIToa2_oJZSlmJymdVQ";
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${key}`;
+  
+  const prompt = `
+You are a senior macro research analyst at Ashford Capital. Your task is to analyze the following financial market intelligence report and extract an in-depth, structured summary and strategic fact-based conclusions.
+
+Review all asset classes (Gold, Nifty, US Equities, US Bonds, Bitcoin) and key macro drivers (inflation, Fed rate path, yields, commodities).
+
+Format your output STRICTLY as a raw, single-line JSON object with no markdown code blocks, containing:
+1. "bullets": An array of 6-8 highly detailed, professional-grade bullet points summarizing key events, asset relationships, and macro developments.
+2. "conclusions": An array of 3-4 strategic, fact-based macro conclusions/trading ideas suitable for a portfolio manager.
+3. "riskScore": An integer between -100 (extreme risk-off) and +100 (extreme risk-on) matching this report's sentiment.
+
+Report Text:
+"""
+${text}
+"""
+`;
+
+  try {
+    const res = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        contents: [{
+          parts: [{ text: prompt }]
+        }]
+      })
+    });
+    
+    if (!res.ok) throw new Error(`HTTP Error ${res.status}`);
+    
+    const data = await res.json();
+    let replyText = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+    
+    replyText = replyText.replace(/^```json\s*/i, '').replace(/```\s*$/, '').trim();
+    
+    const parsed = JSON.parse(replyText);
+    
+    if (parsed.bullets && parsed.bullets.length > 0) {
+      dataset.summary.bullets = parsed.bullets;
+    }
+    if (parsed.conclusions && parsed.conclusions.length > 0) {
+      window.activeStrategicConclusions = parsed.conclusions;
+    }
+    
+    renderSummary();
+    renderAll();
+    persistDataset(dataset, false);
+    
+  } catch (err) {
+    console.warn("Gemini API failed or was blocked (using local fallback summary):", err);
+    // On failure, we fallback to standard local summary (which is already pre-populated)
+    window.activeStrategicConclusions = [
+      "Strategic Note: Rules-based local parser active. Monitor front-end yields for policy shift clues.",
+      "Asset Driver: Correlation matrix indicates yields remain the primary pricing driver for gold and growth assets."
+    ];
+    renderSummary();
+  }
+}
+window.fetchGeminiSummary = fetchGeminiSummary;
+
+/* ============================================================
+   ENHANCEMENTS - GLOBAL KEYWORD SEARCH & NEWSAPI
+   ============================================================ */
+async function fetchNewsFromApi(keyword) {
+  if (!keyword) return;
+  
+  isParsing = true;
+  renderStatusPills();
+  const searchBtn = $('#globalSearchBtn');
+  if (searchBtn) searchBtn.textContent = '⏳';
+  
+  try {
+    const url = `https://newsapi.org/v2/everything?q=${encodeURIComponent(keyword)}&apiKey=2984934cdf28477fb4eccee3bdf6d197`;
+    const res = await fetch(url);
+    if (!res.ok) {
+      throw new Error(`NewsAPI error: ${res.status}`);
+    }
+    const data = await res.json();
+    const articles = data.articles || [];
+    
+    if (articles.length === 0) {
+      showError(`No live news articles found for keyword: "${keyword}"`);
+      return;
+    }
+    
+    const keywordLower = keyword.toLowerCase();
+    const results = [];
+    let aggregatedText = '';
+    
+    articles.forEach(art => {
+      const title = art.title || '';
+      const desc = art.description || '';
+      let content = art.content || '';
+      content = content.replace(/\s*\[\+\d+\s+chars\]\s*$/i, '');
+      
+      const fullText = `${title}. ${desc}. ${content}`;
+      aggregatedText += fullText + ' ';
+      
+      const sentences = fullText.split(/(?<=[.!?])\s+/);
+      const matchedSentences = sentences.filter(s => s.toLowerCase().includes(keywordLower));
+      
+      if (matchedSentences.length > 0) {
+        results.push({
+          source: art.source ? art.source.name : 'News',
+          date: art.publishedAt ? new Date(art.publishedAt).toLocaleDateString() : 'Recent',
+          sentences: matchedSentences.map(s => s.trim()).filter(Boolean)
+        });
+      }
+    });
+    
+    openSearchPopup(keyword, results);
+    
+    if (aggregatedText.trim()) {
+      const rawExtracted = extractIntelligenceLocal(aggregatedText);
+      const fresh = normalizeDataset(rawExtracted);
+      const { data: mergedData, foundCount } = mergeWithPrevious(fresh, dataset);
+      
+      dataset = mergedData;
+      isDemo = false;
+      lastUpdatedAt = new Date();
+      lastFoundCount = foundCount;
+      
+      renderAll();
+      if (typeof updateCharts === 'function') updateCharts();
+      persistDataset(dataset, false);
+    }
+    
+  } catch (err) {
+    console.error(err);
+    showError(`Failed to fetch or visualize live news: ${err.message}`);
+  } finally {
+    isParsing = false;
+    renderStatusPills();
+    if (searchBtn) searchBtn.textContent = '🔍';
+  }
+}
+
+function openSearchPopup(keyword, results) {
+  let html = `
+    <div style="font-size: 11.5px; color: var(--text-faint); margin-bottom: 12px;">
+      Found ${results.length} relevant articles containing matches for "${esc(keyword)}":
+    </div>
+    <div class="search-results-list">
+  `;
+  
+  if (results.length === 0) {
+    html += `<div class="empty-state">No matching complete sentences found containing "${esc(keyword)}".</div>`;
+  } else {
+    results.forEach(res => {
+      const joinedSentences = res.sentences.join(' ');
+      html += `
+        <div class="search-result-block">
+          <div class="search-result-title">
+            <span>${esc(res.source)}</span>
+            <span class="search-result-date">${esc(res.date)}</span>
+          </div>
+          <div class="search-result-text">${esc(joinedSentences)}</div>
+        </div>
+      `;
+    });
+  }
+  
+  html += `</div>`;
+  
+  $('#detailEyebrow').textContent = 'Global Keyword Search';
+  $('#detailTitle').textContent = `Results for "${keyword}"`;
+  $('#detailBody').innerHTML = html;
+  $('#detailOverlay').classList.remove('hidden');
+}
+
+window.fetchNewsFromApi = fetchNewsFromApi;
+window.openSearchPopup = openSearchPopup;
+
+/* ============================================================
+   ENHANCEMENTS - CHATBOT ASSISTANT
+   ============================================================ */
+function appendChatMessage(text, isUser) {
+  const container = $('#chatbotMessages');
+  if (!container) return;
+  
+  const msgEl = document.createElement('div');
+  msgEl.className = `chatbot-msg ${isUser ? 'chatbot-msg--user' : 'chatbot-msg--bot'}`;
+  msgEl.textContent = text;
+  container.appendChild(msgEl);
+  container.scrollTop = container.scrollHeight;
+}
+
+function showChatbotLoading() {
+  const container = $('#chatbotMessages');
+  if (!container) return;
+  
+  const loadingEl = document.createElement('div');
+  loadingEl.className = 'chatbot-msg chatbot-msg--bot';
+  loadingEl.id = 'chatbotLoadingIndicator';
+  loadingEl.innerHTML = `
+    <span class="chatbot-loading"></span>
+    <span class="chatbot-loading"></span>
+    <span class="chatbot-loading"></span>
+  `;
+  container.appendChild(loadingEl);
+  container.scrollTop = container.scrollHeight;
+}
+
+function removeChatbotLoading() {
+  const indicator = document.getElementById('chatbotLoadingIndicator');
+  if (indicator) {
+    indicator.remove();
+  }
+}
+
+async function sendChatbotMessage() {
+  const input = $('#chatbotInput');
+  if (!input) return;
+  const text = input.value.trim();
+  if (!text) return;
+  
+  appendChatMessage(text, true);
+  input.value = '';
+  
+  showChatbotLoading();
+  
+  let dashboardContext = "No active dataset loaded.";
+  if (dataset) {
+    dashboardContext = `
+Active Headline: ${dataset.meta.headline || 'N/A'}
+Macro Rates: ${Object.entries(dataset.macro).map(([k, v]) => `${k}:${v.cur || 'N/A'}`).join(', ')}
+Asset Bias: ${Object.entries(dataset.bias).map(([k, v]) => `${k}:${v.b || 'N/A'} (${v.cf || 0}% conf)`).join(', ')}
+    `;
+  }
+  
+  const systemPrompt = `
+You are the Ashford Capital Terminal Intelligent Assistant. Answer the user's questions or clear their doubts about the current market visualizations, indicators, and uploaded financial context displayed on their screen.
+
+Active Dashboard State:
+${dashboardContext}
+
+Provide short, extremely sharp, fact-based financial-desk answers to the user's queries. Be concise, direct, and act as a senior strategist.
+`;
+
+  const key = "AQ.Ab8RN6KKXWXtzxPQHS83oT9t88qMcublIToa2_oJZSlmJymdVQ";
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${key}`;
+  
+  try {
+    const res = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        contents: [
+          { role: "user", parts: [{ text: systemPrompt + `\n\nUser Question: ${text}` }] }
+        ]
+      })
+    });
+    
+    removeChatbotLoading();
+    
+    if (!res.ok) throw new Error(`HTTP Error ${res.status}`);
+    
+    const data = await res.json();
+    const reply = data.candidates?.[0]?.content?.parts?.[0]?.text || "I was unable to formulate a response.";
+    appendChatMessage(reply.trim(), false);
+    
+  } catch(err) {
+    console.warn("Chatbot Gemini API failed or was blocked (using local smart response):", err);
+    removeChatbotLoading();
+    
+    const query = text.toLowerCase();
+    let reply = "";
+    
+    if (query.includes('gold')) {
+      const g = dataset ? dataset.bias.gold : null;
+      reply = g && g.b ? `Gold is currently showing a [${g.b}] bias with ${g.cf || 50}% confidence. The primary driver is: ${g.pd || 'N/A'}.` : "I don't have enough data on Gold yet. Paste some briefings or load the sample dataset!";
+    } else if (query.includes('cpi') || query.includes('inflation')) {
+      const c = dataset ? dataset.macro.cpiH : null;
+      reply = c && c.cur ? `Headline CPI is currently at ${c.cur} (prior: ${c.prev || 'N/A'}, trend: ${c.d || 'N/A'}). Desk note: ${c.note || 'N/A'}.` : "I don't see any active CPI readings on our dashboard yet.";
+    } else if (query.includes('fed') || query.includes('rate')) {
+      const f = dataset ? dataset.macro.fed : null;
+      reply = f && f.cur ? `The Federal Funds Rate is currently at ${f.cur}. The trend remains ${f.d || 'flat'} (${f.note || 'Held at cycle high'}).` : "I don't see the Federal Funds Rate on the dashboard yet.";
+    } else {
+      reply = "I am currently running in local offline mode. According to our active visualizations, we are monitoring " + 
+              (dataset ? `"${dataset.meta.headline || 'Active Session'}"` : "an empty terminal") + 
+              ". Let me know if you would like to inspect specific assets, indicators, or narrative trends!";
+    }
+    
+    appendChatMessage(reply, false);
+  }
+}
+window.sendChatbotMessage = sendChatbotMessage;
+
+/* ============================================================
+   ENHANCEMENTS - FILE UPLOAD PROCESSOR
+   ============================================================ */
+async function processUploadedFile(file) {
+  if (!file) return;
+  
+  const name = file.name;
+  const ext = name.split('.').pop().toLowerCase();
+  
+  isParsing = true;
+  renderStatusPills();
+  
+  try {
+    const reader = new FileReader();
+    
+    if (ext === 'pdf') {
+      reader.onload = async function(e) {
+        try {
+          const arrayBuffer = e.target.result;
+          const pdfjsLib = window['pdfjs-dist/build/pdf'];
+          pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js';
+          
+          const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+          let fullText = '';
+          for (let i = 1; i <= pdf.numPages; i++) {
+            const page = await pdf.getPage(i);
+            const textContent = await page.getTextContent();
+            const pageText = textContent.items.map(item => item.str).join(' ');
+            fullText += pageText + '\n';
+          }
+          
+          if (!fullText.trim()) {
+            throw new Error("No readable text found inside PDF pages.");
+          }
+          
+          clearError();
+          handleNewIntelligence(fullText);
+          
+        } catch(err) {
+          showError(`PDF Parsing failed: ${err.message}`);
+          isParsing = false;
+          renderStatusPills();
+        }
+      };
+      reader.readAsArrayBuffer(file);
+      
+    } else if (ext === 'docx') {
+      reader.onload = function(e) {
+        const text = e.target.result;
+        clearError();
+        handleNewIntelligence(text);
+      };
+      reader.readAsText(file);
+      
+    } else {
+      reader.onload = function(e) {
+        const text = e.target.result;
+        clearError();
+        handleNewIntelligence(text);
+      };
+      reader.readAsText(file);
+    }
+    
+  } catch(err) {
+    showError(`File upload reading error: ${err.message}`);
+    isParsing = false;
+    renderStatusPills();
+  }
+}
+window.processUploadedFile = processUploadedFile;
+
+/* ============================================================
    EVENT WIRING
    ============================================================ */
 function wireEvents(){
@@ -2671,6 +3023,79 @@ function wireEvents(){
   $('#saveSessionBtn').addEventListener('click', () => {
     saveCurrentSession();
   });
+
+  // Global Search Event Listeners
+  const globalSearchInput = $('#globalSearchInput');
+  const globalSearchBtn = $('#globalSearchBtn');
+  
+  function executeHeaderSearch() {
+    const q = globalSearchInput.value.trim();
+    if (q) {
+      fetchNewsFromApi(q);
+      globalSearchInput.value = '';
+    } else {
+      showError('Please enter a search keyword first.');
+    }
+  }
+
+  if (globalSearchBtn) {
+    globalSearchBtn.addEventListener('click', () => {
+      executeHeaderSearch();
+    });
+  }
+  if (globalSearchInput) {
+    globalSearchInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        executeHeaderSearch();
+      }
+    });
+  }
+
+  // File Upload Event Listener
+  const fileUploadInput = $('#fileUploadInput');
+  if (fileUploadInput) {
+    fileUploadInput.addEventListener('change', (e) => {
+      const file = e.target.files[0];
+      if (file) {
+        processUploadedFile(file);
+        fileUploadInput.value = ''; // clear
+      }
+    });
+  }
+
+  // Chatbot Assistant Event Listeners
+  const chatbotToggleBtn = $('#chatbotToggleBtn');
+  const chatbotCloseBtn = $('#chatbotCloseBtn');
+  const chatbotWindow = $('#chatbotWindow');
+  const chatbotSendBtn = $('#chatbotSendBtn');
+  const chatbotInput = $('#chatbotInput');
+
+  if (chatbotToggleBtn) {
+    chatbotToggleBtn.addEventListener('click', () => {
+      if (chatbotWindow) {
+        chatbotWindow.classList.toggle('hidden');
+      }
+    });
+  }
+  if (chatbotCloseBtn) {
+    chatbotCloseBtn.addEventListener('click', () => {
+      if (chatbotWindow) {
+        chatbotWindow.classList.add('hidden');
+      }
+    });
+  }
+  if (chatbotSendBtn) {
+    chatbotSendBtn.addEventListener('click', () => {
+      sendChatbotMessage();
+    });
+  }
+  if (chatbotInput) {
+    chatbotInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        sendChatbotMessage();
+      }
+    });
+  }
 
   const exportBriefBtn = $('#exportBriefBtn');
   if (exportBriefBtn) {
