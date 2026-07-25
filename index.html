@@ -1679,8 +1679,14 @@ async function callGeminiInteractions(contents, opts){
       let detail = '';
       try{
         const raw = await resp.text();
-        try{ const errJson = JSON.parse(raw); detail = (errJson && errJson.error && errJson.error.message) || raw.slice(0,300); }
-        catch(parseErr){ detail = raw.slice(0,300); }
+        try{
+          const parsed = JSON.parse(raw);
+          // Google's infra sometimes wraps error bodies as [{error:{...}}] rather
+          // than {error:{...}} (confirmed on this exact endpoint) — handle both.
+          const errObj = Array.isArray(parsed) ? (parsed[0] && parsed[0].error) : parsed.error;
+          detail = (errObj && errObj.message) || raw.slice(0,500);
+        }
+        catch(parseErr){ detail = raw.slice(0,500); }
       }catch(e){}
       throw new Error(`Gemini Interactions API error ${resp.status}${resp.statusText?' '+resp.statusText:''}${detail ? ': '+detail : ''}`);
     }
@@ -1735,14 +1741,18 @@ async function callGeminiGenerateContent(promptText, opts){
       let detail = '';
       try{
         const raw = await resp.text();
-        try{ const errJson = JSON.parse(raw); detail = (errJson && errJson.error && errJson.error.message) || raw.slice(0,300); }
-        catch(parseErr){ detail = raw.slice(0,300); }
+        try{
+          const parsed = JSON.parse(raw);
+          const errObj = Array.isArray(parsed) ? (parsed[0] && parsed[0].error) : parsed.error;
+          detail = (errObj && errObj.message) || raw.slice(0,500);
+        }
+        catch(parseErr){ detail = raw.slice(0,500); }
       }catch(e){}
       const isAuthTypeError = resp.status === 401 && /OAuth 2 access token/i.test(detail);
       if(isAuthTypeError){
         const keyFormat = geminiKeyFormat(CONFIG.GEMINI_API_KEY);
         if(keyFormat === 'auth'){
-          throw new Error('Gemini rejected this Auth-format ("AQ.") key on the legacy generateContent endpoint (401 ACCESS_TOKEN_TYPE_UNSUPPORTED). On its own, that matches a known, unresolved Google-side issue (discuss.ai.google.dev) \u2014 but if the Interactions API above failed too, that\u2019s a stronger signal the key itself isn\u2019t currently valid on Google\u2019s end (wrong project, disabled, or a broader account-level version of the same issue), not an endpoint-specific quirk. Fastest way to tell the difference: open aistudio.google.com, select this key\u2019s project, and send one prompt directly from AI Studio\u2019s own interface \u2014 if that also fails there, it\u2019s the key/account, not this file. Also worth a quick check: aistudio.google.com/status.');
+          throw new Error('Gemini rejected this Auth-format ("AQ.") key on the legacy generateContent endpoint (401 ACCESS_TOKEN_TYPE_UNSUPPORTED). This exact message ("Expected OAuth 2 access token, login cookie or other valid authentication credential") is Google\u2019s generic auth-layer rejection \u2014 it also shows up for mundane, fixable causes unrelated to the AQ. rollout: the Generative Language API not enabled on this key\u2019s project, or no billing account linked (Google requires one even for free-tier use). Worth checking both in aistudio.google.com/api-keys before assuming it\u2019s the broader known issue (discuss.ai.google.dev). If both check out, the fastest way to confirm it\u2019s Google\u2019s side: open aistudio.google.com, select this key\u2019s project, and send one prompt directly from AI Studio\u2019s own interface \u2014 if that also fails there, it\u2019s the key/account/project, not this file.');
         }
         if(keyFormat === 'standard'){
           throw new Error('Gemini rejected this Standard-format ("AIzaSy\u2026") key (401 ACCESS_TOKEN_TYPE_UNSUPPORTED). Standard keys must now be explicitly restricted to the Gemini API to keep working, and stop working entirely in September 2026 \u2014 check aistudio.google.com/api-keys for this key\u2019s status (it may show as unrestricted, disabled, or flagged) and consider migrating to an Auth key.');
