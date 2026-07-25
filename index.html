@@ -7,9 +7,6 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.4.8/mammoth.browser.min.js"></script>
 <style>
 /* ============================================================
    DESIGN TOKENS
@@ -388,86 +385,6 @@ button{ font-family:inherit; }
 .detail-impact-card.up{ background:var(--bear-dim); border:1px solid rgba(242,69,61,0.25); color:var(--text-dim); }
 .detail-impact-card.down{ background:var(--bull-dim); border:1px solid rgba(47,191,113,0.25); color:var(--text-dim); }
 
-/* ---- Highlighting and custom controls for enhancements ---- */
-.hl-keyword { background: rgba(67, 128, 250, 0.25); color: #fff; padding: 0 2px; border-radius: 2px; border-bottom: 1px solid var(--macro); }
-.hl-number { background: rgba(232, 197, 71, 0.25); color: #fff; padding: 0 2px; border-radius: 2px; border-bottom: 1px solid var(--warn); }
-.comment-box { width: 100%; min-height: 60px; background: var(--bg-inset); border: 1px solid var(--border); border-radius: var(--radius); color: var(--text); padding: 8px; font-family: var(--font-sans); font-size: 11.5px; resize: vertical; margin-top: 6px; }
-.comment-box:focus { border-color: var(--macro); outline: none; }
-.comment-save-btn { font-size: 10px; font-weight: 600; text-transform: uppercase; padding: 4px 10px; margin-top: 6px; cursor: pointer; border: 1px solid var(--border); background: var(--card-raised); color: var(--text-dim); border-radius: var(--radius); }
-.comment-save-btn:hover { border-color: var(--macro); color: var(--text); }
-
-/* ---- Layout Sidebar/Tabs for historical and analytics panels ---- */
-.layout-container { display: flex; gap: var(--gap); margin-top: var(--gap); }
-.layout-sidebar { width: 280px; flex-shrink: 0; display: flex; flex-direction: column; gap: var(--gap); }
-.layout-main-content { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: var(--gap); }
-
-/* ---- Feed Simulator component ---- */
-.feed-box { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); padding: 12px; }
-.feed-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
-.feed-select { background: var(--bg-inset); border: 1px solid var(--border); color: var(--text); padding: 6px; font-size: 11.5px; border-radius: var(--radius); width: 100%; outline: none; }
-.feed-select:focus { border-color: var(--macro); }
-
-/* ---- Saved Sessions List ---- */
-.session-item { display: flex; align-items: center; justify-content: space-between; padding: 8px 10px; border-radius: var(--radius); border: 1px solid var(--border-soft); background: var(--bg-inset); margin-bottom: 6px; cursor: pointer; transition: background 0.15s; }
-.session-item:hover { background: var(--card-raised); }
-.session-info { display: flex; flex-direction: column; gap: 2px; flex: 1; min-width: 0; }
-.session-name { font-size: 11.5px; font-weight: 500; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.session-meta { font-size: 9.5px; color: var(--text-faint); }
-.session-actions { display: flex; gap: 4px; }
-.session-btn { background: transparent; border: none; color: var(--text-faint); cursor: pointer; font-size: 13px; padding: 2px 4px; }
-.session-btn:hover { color: var(--bear); }
-
-/* ---- Analytical Charting Dashboard ---- */
-.chart-container { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); padding: 12px; display: flex; flex-direction: column; gap: 10px; }
-.chart-canvas-wrap { position: relative; height: 180px; width: 100%; }
-
-/* ---- Settings / Custom Config panel ---- */
-.settings-grid { display: grid; grid-template-columns: 1fr; gap: 8px; max-height: 300px; overflow-y: auto; padding: 4px; }
-.settings-row { display: flex; align-items: center; gap: 6px; border-bottom: 1px solid var(--border-soft); padding-bottom: 6px; }
-.settings-input { background: var(--bg-inset); border: 1px solid var(--border); color: var(--text); font-family: var(--font-mono); font-size: 11px; padding: 4px 6px; border-radius: var(--radius); flex: 1; min-width: 0; }
-
-/* ---- Button states ---- */
-.btn--action { border-color: var(--macro); color: var(--macro); }
-.btn--action:hover { background: var(--macro-dim); }
-
-/* ---- Global Search Header & Modal Styles ---- */
-.header-search-wrap { display: flex; align-items: center; gap: 8px; background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); padding: 4px 8px; margin-right: 12px; }
-.header-search-input { background: transparent; border: none; outline: none; color: var(--text); font-family: var(--font-sans); font-size: 11.5px; width: 140px; }
-.header-search-btn { background: transparent; border: none; color: var(--text-dim); cursor: pointer; font-size: 14px; display: flex; align-items: center; justify-content: center; padding: 0 4px; }
-.header-search-btn:hover { color: var(--macro); }
-
-.search-results-list { display: flex; flex-direction: column; gap: 10px; max-height: 400px; overflow-y: auto; padding-right: 4px; }
-.search-result-block { background: var(--bg-inset); border: 1px solid var(--border-soft); border-left: 3px solid var(--macro); border-radius: var(--radius); padding: 10px 12px; }
-.search-result-title { font-weight: 600; font-size: 12px; color: var(--text); margin-bottom: 4px; display: flex; justify-content: space-between; align-items: center; }
-.search-result-date { font-family: var(--font-mono); font-size: 9.5px; color: var(--text-faint); }
-.search-result-text { font-size: 11.5px; color: var(--text-dim); line-height: 1.5; }
-
-/* ---- Custom Floating Chatbot Widget (Bottom Right) ---- */
-.chatbot-fab { position: fixed; bottom: 20px; right: 20px; width: 44px; height: 44px; border-radius: 50%; background: var(--macro); color: #fff; display: flex; align-items: center; justify-content: center; font-size: 20px; cursor: pointer; box-shadow: 0 4px 16px rgba(0,0,0,0.4); z-index: 150; border: none; transition: transform 0.2s; }
-.chatbot-fab:hover { transform: scale(1.05); }
-.chatbot-window { position: fixed; bottom: 74px; right: 20px; width: 340px; height: 450px; background: var(--card); border: 1px solid var(--border); border-radius: 4px; display: flex; flex-direction: column; box-shadow: 0 10px 30px rgba(0,0,0,0.5); z-index: 150; overflow: hidden; }
-.chatbot-header { display: flex; align-items: center; justify-content: space-between; padding: 10px 14px; border-bottom: 1px solid var(--border); background: var(--card-raised); }
-.chatbot-title { font-weight: 600; font-size: 11.5px; letter-spacing: 0.8px; text-transform: uppercase; color: var(--text); }
-.chatbot-close { background: transparent; border: none; color: var(--text-faint); font-size: 18px; cursor: pointer; padding: 0 4px; }
-.chatbot-close:hover { color: var(--text); }
-.chatbot-messages { flex: 1; overflow-y: auto; padding: 12px; display: flex; flex-direction: column; gap: 10px; }
-.chatbot-msg { max-width: 85%; padding: 8px 10px; border-radius: var(--radius); font-size: 11.5px; line-height: 1.45; word-wrap: break-word; }
-.chatbot-msg--bot { background: var(--bg-inset); color: var(--text); border: 1px solid var(--border-soft); align-self: flex-start; }
-.chatbot-msg--user { background: var(--macro-dim); color: var(--text); border: 1px solid rgba(67,128,250,0.3); align-self: flex-end; }
-.chatbot-loading { display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: var(--text-faint); margin: 0 2px; animation: bounce 0.6s infinite alternate; }
-.chatbot-loading:nth-child(2) { animation-delay: 0.2s; }
-.chatbot-loading:nth-child(3) { animation-delay: 0.4s; }
-@keyframes bounce { to { transform: translateY(-4px); } }
-
-.chatbot-input-wrap { display: flex; border-top: 1px solid var(--border); padding: 8px; background: var(--card-raised); }
-.chatbot-input { flex: 1; background: var(--bg-inset); border: 1px solid var(--border); border-radius: var(--radius); color: var(--text); font-size: 11.5px; padding: 6px 10px; outline: none; }
-.chatbot-input:focus { border-color: var(--macro); }
-.chatbot-send-btn { background: transparent; border: none; color: var(--macro); padding: 0 8px 0 12px; cursor: pointer; font-size: 14px; }
-.chatbot-send-btn:hover { color: var(--text); }
-
-/* ---- File Upload Button Styles ---- */
-.file-upload-btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; cursor: pointer; height: 100%; }
-
 .term-footer{ margin-top:26px; padding-top:14px; border-top:1px solid var(--border-soft); display:flex; justify-content:space-between; font-size:10px; color:var(--text-faint); letter-spacing:0.3px; flex-wrap:wrap; gap:6px; }
 
 /* ============================================================
@@ -487,6 +404,115 @@ button{ font-family:inherit; }
   .header-right{ align-items:flex-start; }
   .status-pills{ justify-content:flex-start; }
 }
+
+/* ============================================================
+   NEW — warn-tone variants for existing components
+   (used when something recovers from a non-fatal failure,
+   e.g. Gemini being unavailable, distinct from a hard error)
+   ============================================================ */
+.pill.pill--warn{ color:var(--warn); border-color:rgba(232,197,71,0.35); background:var(--warn-dim); }
+.error-banner.warn-tone{ background:var(--warn-dim); border-color:rgba(232,197,71,0.35); color:var(--warn); }
+.error-banner.warn-tone button{ color:var(--warn); }
+
+/* ============================================================
+   NEW — header search entry point
+   ============================================================ */
+.header-actions{ display:flex; align-items:center; gap:10px; }
+.header-search-btn{
+  width:28px; height:28px; flex:0 0 28px; display:flex; align-items:center; justify-content:center;
+  background:var(--card); color:var(--text-dim); border:1px solid var(--border);
+  border-radius:var(--radius); cursor:pointer; transition:border-color .15s ease, color .15s ease;
+}
+.header-search-btn:hover{ border-color:var(--macro); color:var(--text); }
+
+/* ============================================================
+   NEW — upload status pill (self-aligned so it doesn't stretch
+   inside .control-row's align-items:stretch)
+   ============================================================ */
+#uploadStatusPill{ align-self:center; }
+
+/* ============================================================
+   NEW — global search modal
+   ============================================================ */
+.search-overlay{
+  position:fixed; inset:0; background:rgba(5,8,12,0.72); backdrop-filter:blur(2px);
+  display:flex; align-items:flex-start; justify-content:center; z-index:210; padding:64px 20px 20px;
+}
+.search-overlay.hidden{ display:none; }
+.search-modal{
+  background:var(--card); border:1px solid var(--border); border-radius:var(--radius);
+  max-width:760px; width:100%; max-height:82vh; display:flex; flex-direction:column;
+  box-shadow:0 20px 60px rgba(0,0,0,0.55);
+}
+.search-modal-head{ display:flex; align-items:center; gap:10px; padding:12px 14px; border-bottom:1px solid var(--border); }
+.search-form{
+  flex:1; display:flex; align-items:center; gap:8px; background:var(--bg-inset);
+  border:1px solid var(--border); border-radius:var(--radius); padding:7px 10px; transition:border-color .15s ease;
+}
+.search-form:focus-within{ border-color:var(--macro); }
+.search-form-icon{ color:var(--text-faint); flex:0 0 auto; }
+.search-form-input{ flex:1; min-width:0; background:transparent; border:none; outline:none; color:var(--text); font-family:var(--font-sans); font-size:13px; }
+.search-form-input::placeholder{ color:var(--text-faint); }
+.search-modal-body{ padding:16px 18px; overflow-y:auto; font-size:12.5px; }
+.search-idle{ color:var(--text-faint); padding:20px 4px; line-height:1.65; }
+.search-loading{ display:flex; align-items:center; gap:9px; color:var(--text-dim); padding:20px 4px; }
+.search-loading .spinner{ width:14px; height:14px; border:2px solid var(--border); border-top-color:var(--macro); border-radius:50%; animation:spin .6s linear infinite; flex:0 0 auto; }
+.search-section-title{ font-size:10px; font-weight:600; letter-spacing:0.8px; text-transform:uppercase; color:var(--macro); margin:18px 0 8px; }
+.search-section-title:first-child{ margin-top:0; }
+.search-synthesis-item{ font-size:12.5px; line-height:1.65; color:var(--text-dim); padding:8px 0; border-bottom:1px solid var(--border-soft); }
+.search-synthesis-item:last-child{ border-bottom:none; }
+.search-applied-note{ display:flex; align-items:center; gap:7px; font-size:11px; color:var(--bull); background:var(--bull-dim); border:1px solid rgba(47,191,113,0.3); border-radius:var(--radius); padding:7px 10px; margin-bottom:14px; }
+.search-article{ border:1px solid var(--border-soft); border-radius:var(--radius); padding:11px 13px; margin-bottom:8px; background:var(--bg-inset); }
+.search-article-top{ display:flex; align-items:baseline; justify-content:space-between; gap:10px; margin-bottom:5px; flex-wrap:wrap; }
+.search-article-source{ font-size:10px; font-weight:600; letter-spacing:0.4px; text-transform:uppercase; color:var(--macro); }
+.search-article-time{ font-size:10px; color:var(--text-faint); white-space:nowrap; }
+.search-article-title{ font-size:13px; font-weight:600; color:var(--text); line-height:1.4; margin-bottom:5px; }
+.search-article-desc{ font-size:12px; color:var(--text-dim); line-height:1.6; margin-bottom:6px; }
+.search-article-link{ font-size:10.5px; color:var(--macro); text-decoration:none; }
+.search-article-link:hover{ text-decoration:underline; }
+.search-empty{ color:var(--text-faint); padding:20px 4px; text-align:center; }
+@media (max-width:640px){ .search-overlay{ padding:40px 12px 12px; } }
+
+/* ============================================================
+   NEW — terminal assistant (chat widget)
+   ============================================================ */
+.chat-fab{
+  position:fixed; right:22px; bottom:22px; width:52px; height:52px; border-radius:50%;
+  background:var(--macro); color:#fff; border:none; cursor:pointer; z-index:180;
+  display:flex; align-items:center; justify-content:center; box-shadow:0 8px 24px rgba(67,128,250,0.35);
+  transition:transform .15s ease, box-shadow .15s ease;
+}
+.chat-fab:hover{ transform:translateY(-2px); box-shadow:0 12px 28px rgba(67,128,250,0.45); }
+.chat-panel{
+  position:fixed; right:22px; bottom:86px; width:380px; max-width:calc(100vw - 32px);
+  height:520px; max-height:calc(100vh - 130px);
+  background:var(--card); border:1px solid var(--border); border-radius:var(--radius);
+  box-shadow:0 20px 60px rgba(0,0,0,0.55); display:flex; flex-direction:column; z-index:190; overflow:hidden;
+}
+.chat-panel.hidden{ display:none; }
+.chat-head{ display:flex; align-items:center; justify-content:space-between; padding:12px 14px; border-bottom:1px solid var(--border); background:var(--card-raised); flex:0 0 auto; }
+.chat-head-title{ font-size:12.5px; font-weight:600; color:var(--text); }
+.chat-head-sub{ font-size:10px; color:var(--text-faint); margin-top:1px; }
+.chat-messages{ flex:1; overflow-y:auto; padding:14px; display:flex; flex-direction:column; gap:10px; }
+.chat-msg{ max-width:88%; padding:8px 11px; border-radius:var(--radius); font-size:12px; line-height:1.55; white-space:pre-wrap; }
+.chat-msg.user{ align-self:flex-end; background:var(--macro-dim); color:var(--text); border:1px solid rgba(67,128,250,0.3); }
+.chat-msg.model{ align-self:flex-start; background:var(--bg-inset); color:var(--text-dim); border:1px solid var(--border-soft); }
+.chat-msg.model.error{ background:var(--bear-dim); color:var(--bear); border-color:rgba(242,69,61,0.3); }
+.chat-msg.typing{ align-self:flex-start; display:flex; gap:4px; padding:12px 13px; }
+.chat-dot{ width:5px; height:5px; border-radius:50%; background:var(--text-faint); animation:chatDot 1s ease-in-out infinite; }
+.chat-dot:nth-child(2){ animation-delay:.15s; }
+.chat-dot:nth-child(3){ animation-delay:.3s; }
+@keyframes chatDot{ 0%,60%,100%{opacity:.3; transform:translateY(0);} 30%{opacity:1; transform:translateY(-2px);} }
+.chat-input-row{ display:flex; align-items:flex-end; gap:8px; padding:10px; border-top:1px solid var(--border); flex:0 0 auto; }
+.chat-input{
+  flex:1; resize:none; max-height:90px; background:var(--bg-inset); border:1px solid var(--border); color:var(--text);
+  border-radius:var(--radius); padding:8px 10px; font-family:var(--font-sans); font-size:12px; outline:none; line-height:1.4;
+}
+.chat-input:focus{ border-color:var(--macro); }
+@media (max-width:480px){
+  .chat-panel{ right:12px; left:12px; width:auto; bottom:78px; }
+  .chat-fab{ right:16px; bottom:16px; }
+}
 </style>
 </head>
 <body>
@@ -498,11 +524,10 @@ button{ font-family:inherit; }
       <div class="brand-title">Market Intelligence Terminal</div>
     </div>
     <div class="header-right">
-      <div style="display:flex; align-items:center; gap: 10px; flex-wrap:wrap; justify-content:flex-end;">
-        <div class="header-search-wrap">
-          <input type="text" class="header-search-input" id="globalSearchInput" placeholder="Global Search (Enter)..." />
-          <button class="header-search-btn" id="globalSearchBtn" title="Search keyword in news & terminal">🔍</button>
-        </div>
+      <div class="header-actions">
+        <button class="header-search-btn" id="globalSearchBtn" title="Global search — search any asset, event, or keyword" aria-label="Open global search">
+          <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><circle cx="7" cy="7" r="5.25" stroke="currentColor" stroke-width="1.6"/><line x1="11.2" y1="11.2" x2="14.5" y2="14.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+        </button>
         <div class="live-clock" id="liveClock">—</div>
       </div>
       <div class="status-pills" id="statusPills"></div>
@@ -514,17 +539,13 @@ button{ font-family:inherit; }
       <span class="prompt-glyph">▍</span>
       <textarea id="pasteZone" rows="1" placeholder="Paste raw market intelligence to refresh the terminal — parses automatically, no submit needed…"></textarea>
     </label>
-    <button class="btn-icon" id="fileUploadBtn" title="Upload PDF, Word, or TXT reports" style="display:flex; align-items:center; justify-content:center; padding:0;">
-      <label class="file-upload-btn" for="fileUploadInput" style="cursor:pointer; display:flex; align-items:center; justify-content:center; width:100%; height:100%;">
-        📁
-        <input type="file" id="fileUploadInput" accept=".txt,.docx,.pdf" style="display:none;" />
-      </label>
+    <span class="pill hidden" id="uploadStatusPill"></span>
+    <input type="file" id="fileUploadInput" accept=".txt,.docx,.pdf,text/plain" hidden>
+    <button class="btn-icon" id="uploadBtn" title="Upload a .txt, .docx, or .pdf file to analyze" aria-label="Upload file">
+      <svg width="15" height="15" viewBox="0 0 16 16" fill="none"><path d="M8 10.5V2.5M8 2.5L5 5.5M8 2.5l3 3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M2.5 10.5v2A1.5 1.5 0 0 0 4 14h8a1.5 1.5 0 0 0 1.5-1.5v-2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
     </button>
     <button class="btn-icon" id="retryBtn" title="Re-run parse on current input" aria-label="Re-run parse">⟳</button>
     <button class="btn" id="sampleBtn" title="Load sample dataset to preview the layout">Load Sample</button>
-    <button class="btn btn--action" id="saveSessionBtn" title="Save current state to history">Save Session</button>
-    <button class="btn" id="exportBriefBtn" title="Export Daily Intelligence Briefing">Export Brief</button>
-    <button class="btn" id="toggleSettingsBtn" title="Configure dynamic asset and indicator parameters">Settings</button>
   </div>
 
   <div class="error-banner hidden" id="errorBanner">
@@ -532,63 +553,11 @@ button{ font-family:inherit; }
     <button id="errorDismiss" aria-label="Dismiss">×</button>
   </div>
 
-  <!-- Dynamic Settings Panel -->
-  <div id="settingsPanel" class="panel hidden" style="margin-bottom: var(--gap); padding: var(--gap);">
-    <div class="panel-head" style="padding: 0 0 10px 0; margin-bottom: 10px; border-bottom: 1px solid var(--border);"><span class="panel-title">Custom Asset & Indicator Settings</span></div>
-    <div class="settings-grid" id="settingsGrid"></div>
-    <div style="margin-top: 10px; display: flex; gap: 8px;">
-      <button class="btn" id="saveSettingsBtn">Apply & Save Settings</button>
-      <button class="btn" id="resetSettingsBtn">Reset to Defaults</button>
-    </div>
-  </div>
-
-  <div class="layout-container">
-    <!-- Sidebar for saved history vault and news feed simulator -->
-    <aside class="layout-sidebar">
-      <div class="section-label" style="margin-top:0;">Intelligence Streams</div>
-      <div class="feed-box">
-        <div class="feed-header">
-          <span class="eyebrow">Simulate Intelligence</span>
-        </div>
-        <select class="feed-select" id="feedSimulator">
-          <option value="">-- Select Simulated Intelligence Stream --</option>
-          <option value="cpi">CPI Day (Cooling Inflation & Dovish Repricing)</option>
-          <option value="fed">FOMC Interest Rate Hold (Hawkish Bias & Yield Push)</option>
-          <option value="opec">OPEC Supply Shock (Oil Spike & Commodity Pressures)</option>
-          <option value="calm">Calm Summer Markets (Range-Bound Activity)</option>
-        </select>
-      </div>
-
-      <div class="section-label">Session Vault</div>
-      <div class="panel" style="flex:1;">
-        <div class="panel-head" style="padding: 8px 12px;"><span class="panel-title">Saved Histories</span></div>
-        <div class="panel-body" style="padding: 6px; max-height: 250px; overflow-y:auto;" id="savedSessionsList">
-          <div class="empty-state" style="padding:15px;">No saved history vaults found.</div>
-        </div>
-      </div>
-      
-      <div class="section-label">Quantitative Charts</div>
-      <div class="chart-container">
-        <span class="eyebrow" style="margin-bottom: 2px;">Asset Confidence Comparisons</span>
-        <div class="chart-canvas-wrap">
-          <canvas id="confidenceChart"></canvas>
-        </div>
-      </div>
-      <div class="chart-container">
-        <span class="eyebrow" style="margin-bottom: 2px;">Narrative Trend Strengths</span>
-        <div class="chart-canvas-wrap">
-          <canvas id="narrativeChart"></canvas>
-        </div>
-      </div>
-    </aside>
-
-    <!-- Main Content Panel Area -->
-    <div class="layout-main-content">
-      <div class="section-label" style="margin-top:0;">Session Summary</div>
-      <section class="panel">
-        <div class="panel-head"><span class="panel-title">Session Summary</span><span class="panel-count" id="summaryCount"></span></div>
-        <div class="summary-body" id="summaryPanel"></div>
-      </section>
+  <div class="section-label">Session Summary</div>
+  <section class="panel">
+    <div class="panel-head"><span class="panel-title">Session Summary</span><span class="panel-count" id="summaryCount"></span></div>
+    <div class="summary-body" id="summaryPanel"></div>
+  </section>
 
   <div class="section-label">Macro Status</div>
   <section class="macro-grid" id="macroStrip"></section>
@@ -641,32 +610,11 @@ button{ font-family:inherit; }
     </div>
   </section>
 
-    </div> <!-- Close layout-main-content -->
-  </div> <!-- Close layout-container -->
-
   <footer class="term-footer">
-    <span>Parsed instantly in your browser · nothing you paste ever leaves this device</span>
+    <span>Structured off-device via Gemini · live search via NewsAPI</span>
     <span id="footerRight">Ashford Capital — internal use</span>
   </footer>
 
-</div>
-
-<!-- Floating Chatbot Widget (Bottom Right) -->
-<button class="chatbot-fab" id="chatbotToggleBtn" title="Chat with Ashford Terminal Assistant">💬</button>
-<div class="chatbot-window hidden" id="chatbotWindow">
-  <div class="chatbot-header">
-    <span class="chatbot-title">Ashford Assistant</span>
-    <button class="chatbot-close" id="chatbotCloseBtn" aria-label="Close">×</button>
-  </div>
-  <div class="chatbot-messages" id="chatbotMessages">
-    <div class="chatbot-msg chatbot-msg--bot">
-      Hello! I am your Ashford terminal assistant. Ask me any questions about the current visualizations, indicators, or uploaded report context.
-    </div>
-  </div>
-  <div class="chatbot-input-wrap">
-    <input type="text" class="chatbot-input" id="chatbotInput" placeholder="Ask a question..." />
-    <button class="chatbot-send-btn" id="chatbotSendBtn" title="Send message">➤</button>
-  </div>
 </div>
 
 <div class="detail-overlay hidden" id="detailOverlay">
@@ -682,11 +630,47 @@ button{ font-family:inherit; }
   </div>
 </div>
 
+<div class="search-overlay hidden" id="searchOverlay">
+  <div class="search-modal">
+    <div class="search-modal-head">
+      <form class="search-form" id="searchForm">
+        <svg class="search-form-icon" width="15" height="15" viewBox="0 0 16 16" fill="none"><circle cx="7" cy="7" r="5.25" stroke="currentColor" stroke-width="1.6"/><line x1="11.2" y1="11.2" x2="14.5" y2="14.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+        <input type="text" id="globalSearchInput" class="search-form-input" placeholder="Search any asset, ticker, event, or keyword — pulls live news…" autocomplete="off">
+        <button type="submit" class="btn" id="globalSearchGo">Search</button>
+      </form>
+      <button class="detail-close" id="searchClose" aria-label="Close search">×</button>
+    </div>
+    <div class="search-modal-body" id="searchModalBody">
+      <div class="search-idle">Search any keyword — an asset, a ticker, a central bank, an event, anything — to pull the latest live news on it, synthesize it, and load anything relevant straight into the boards below.</div>
+    </div>
+  </div>
+</div>
+
+<button class="chat-fab" id="chatFab" aria-label="Open terminal assistant" title="Terminal Assistant">
+  <svg width="22" height="22" viewBox="0 0 24 24" fill="none"><path d="M4 6a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H9l-4 3.2V17H6a2 2 0 0 1-2-2V6Z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round"/><circle cx="8.5" cy="10.5" r="0.9" fill="currentColor"/><circle cx="12" cy="10.5" r="0.9" fill="currentColor"/><circle cx="15.5" cy="10.5" r="0.9" fill="currentColor"/></svg>
+</button>
+<div class="chat-panel hidden" id="chatPanel">
+  <div class="chat-head">
+    <div>
+      <div class="chat-head-title">Terminal Assistant</div>
+      <div class="chat-head-sub">Ask about any figure, card, or section</div>
+    </div>
+    <button class="detail-close" id="chatClose" aria-label="Close assistant">×</button>
+  </div>
+  <div class="chat-messages" id="chatMessages"></div>
+  <form class="chat-input-row" id="chatForm">
+    <textarea id="chatInput" class="chat-input" rows="1" placeholder="Ask a question about this dashboard…"></textarea>
+    <button type="submit" class="btn-icon" id="chatSend" aria-label="Send">
+      <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M2 8l12-5.5L9.5 14l-2-5-5.5-1Z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round" stroke-linecap="round"/></svg>
+    </button>
+  </form>
+</div>
+
 <script>
 /* ============================================================
    CONFIG — fixed schema definitions (order matters, matches spec)
    ============================================================ */
-let MACRO_DEFS = [
+const MACRO_DEFS = [
   {id:'fed',   label:'Fed Funds Rate'},
   {id:'cpiH',  label:'Headline CPI'},
   {id:'cpiC',  label:'Core CPI'},
@@ -700,24 +684,13 @@ let MACRO_DEFS = [
   {id:'brent', label:'Brent'},
   {id:'vix',   label:'VIX'},
 ];
-let ASSET_DEFS = [
+const ASSET_DEFS = [
   {id:'gold',     label:'Gold'},
   {id:'nifty',    label:'Nifty'},
   {id:'usEq',     label:'US Equities'},
   {id:'usBonds',  label:'US Bonds'},
   {id:'btc',      label:'Bitcoin'},
 ];
-
-// Load customized configurations if saved in localStorage
-try {
-  const savedMacros = localStorage.getItem('ashford_custom_macros');
-  const savedAssets = localStorage.getItem('ashford_custom_assets');
-  if (savedMacros) MACRO_DEFS = JSON.parse(savedMacros);
-  if (savedAssets) ASSET_DEFS = JSON.parse(savedAssets);
-} catch(e) {
-  console.warn('Failed to load custom configs from localStorage', e);
-}
-
 const POS_DEFS = [
   {id:'risk',      label:'Risk On / Risk Off'},
   {id:'inflation', label:'Inflation Theme'},
@@ -730,6 +703,32 @@ const POS_DEFS = [
 ];
 
 /* ============================================================
+   CONFIG — external services (live news + AI summarization)
+   ------------------------------------------------------------
+   These are called directly from the browser, which is fine for
+   internal/prototype use but means anyone who views this page's
+   source or network tab can read the keys below. Before this
+   terminal is ever hosted somewhere outside your own machine,
+   move both calls behind a small backend/serverless proxy so the
+   keys never ship to the client — and rotate both keys at that
+   point, since they've now been pasted into this file in plain
+   text. NEWS_API_BASE assumes a NewsAPI.org key (their keys are
+   32-character hex strings) — if you're on a different provider,
+   only fetchLiveNews() below needs to change. NewsAPI's free
+   "Developer" plan also only allows browser requests from
+   localhost and delays articles ~24h — errors from that plan are
+   surfaced as a specific message in fetchLiveNews() rather than a
+   generic failure.
+   ============================================================ */
+const CONFIG = {
+  NEWS_API_KEY:   '2984934cdf28477fb4eccee3bdf6d197',
+  NEWS_API_BASE:  'https://newsapi.org/v2',
+  GEMINI_API_KEY: 'AQ.Ab8RN6KKXWXtzxPQHS83oT9t88qMcublIToa2_oJZSlmJymdVQ',
+  GEMINI_MODEL:   'gemini-3.5-flash', // swap to e.g. 'gemini-3.6-flash' or 'gemini-2.5-flash' if this one 404s on your key
+  GEMINI_BASE:    'https://generativelanguage.googleapis.com/v1beta/models',
+};
+
+/* ============================================================
    STATE
    ============================================================ */
 let dataset = null;       // normalized dataset currently rendered, or null
@@ -737,6 +736,7 @@ let isDemo = false;
 let isParsing = false;
 let lastUpdatedAt = null; // Date
 let lastFoundCount = null; // how many fields/sections the last parse actually found
+let lastEngine = null;     // 'gemini' | 'local' | null — which extraction path produced the current dataset
 
 const watchlistState = { query:'', imp:'', sortKey:null, sortDir:'asc' };
 const macroTableState = { query:'', sortKey:null, sortDir:'asc' };
@@ -1474,6 +1474,424 @@ function extractIntelligenceLocal(rawText){
   return { meta, macro, bias:assets.bias, matrix:assets.matrix, pos, events, narratives, watchlist, today, summary:{bullets:summaryBullets} };
 }
 
+/* ==========================================================================
+   AI-POWERED EXTRACTION — Gemini structured summarization
+   --------------------------------------------------------------------------
+   This becomes the primary path (see handleNewIntelligence() far below):
+   it sends the source text to Gemini with a detailed schema-and-rules
+   prompt built from the same MACRO_DEFS / ASSET_DEFS / POS_DEFS the rest
+   of the app already uses, so the prompt can never drift out of sync with
+   normalizeDataset(). Gemini's job is real synthesis, not sentence-
+   matching — see the RULES block in buildGeminiPrompt(). If this fails for
+   any reason (network, bad key, malformed JSON), the caller falls back to
+   extractIntelligenceLocal() above so the terminal still updates with
+   *something* rather than nothing.
+   ========================================================================== */
+function loadScript(src){
+  return new Promise((resolve, reject)=>{
+    if(document.querySelector(`script[src="${src}"]`)){ resolve(); return; }
+    const s = document.createElement('script');
+    s.src = src; s.async = true;
+    s.onload = ()=>resolve();
+    s.onerror = ()=>reject(new Error('Failed to load '+src));
+    document.head.appendChild(s);
+  });
+}
+function stripNewsApiTruncation(text){
+  if(!text) return '';
+  return text.replace(/\s*\[\+\d+\s*chars?\]\s*$/i, '').trim();
+}
+function trimToCompleteSentences(text, maxChars){
+  if(!text) return '';
+  const t = stripNewsApiTruncation(text).trim();
+  if(t.length <= maxChars) return t;
+  const cut = t.slice(0, maxChars);
+  const lastEnd = Math.max(cut.lastIndexOf('. '), cut.lastIndexOf('! '), cut.lastIndexOf('? '));
+  if(lastEnd > maxChars*0.4) return cut.slice(0, lastEnd+1).trim();
+  const lastSpace = cut.lastIndexOf(' ');
+  return (lastSpace>0 ? cut.slice(0,lastSpace) : cut).trim() + '\u2026';
+}
+function fmtPublishedAt(iso){
+  if(!iso) return '';
+  const d = new Date(iso);
+  if(isNaN(d.getTime())) return '';
+  return d.toLocaleString([], {month:'short', day:'numeric', hour:'2-digit', minute:'2-digit'});
+}
+
+function schemaPromptBlock(){
+  const macroIds = MACRO_DEFS.map(m=>m.id).join('", "');
+  const assetIds = ASSET_DEFS.map(a=>`"${a.id}" (${a.label})`).join(', ');
+  const posIds = POS_DEFS.map(p=>`"${p.id}" (${p.label})`).join(', ');
+  return `MACRO INDICATOR IDS \u2014 use exactly these keys under "macro", one object each: "${macroIds}"
+ASSET IDS \u2014 use exactly these keys under "bias" and "matrix": ${assetIds}
+POSITIONING THEME IDS \u2014 use exactly these keys under "pos": ${posIds}`;
+}
+
+function buildGeminiPrompt(rawText, opts){
+  opts = opts || {};
+  const keyword = opts.keyword || '';
+  const sourceLabel = opts.sourceLabel || 'Pasted market intelligence text';
+  return `You are the senior macro/markets analyst embedded inside the Ashford Capital Market Intelligence Terminal, an institutional-style trading dashboard covering gold, Indian equities (Nifty), US equities, US bonds/rates, and Bitcoin against a backdrop of Fed policy, inflation prints, yields, the dollar, oil and volatility.
+
+Your job is to read the SOURCE TEXT below and produce ONE strict JSON object that will be rendered directly into the terminal's dashboards. You are replacing a legacy keyword-matching parser that only extracted sentences \u2014 you must actually read, understand and SYNTHESIZE the text like a strategist writing a desk note, not copy sentences out of it.
+
+SOURCE (${sourceLabel}):
+"""
+${rawText.slice(0, 24000)}
+"""
+${keyword ? `\nThe user is specifically researching: "${keyword}". Prioritize anything in the text relevant to that topic across every section below, but still populate any other section the text genuinely supports.\n` : ''}
+${schemaPromptBlock()}
+
+Return ONLY a single JSON object \u2014 no markdown fences, no headings, no commentary before or after it \u2014 matching EXACTLY this shape and these field meanings:
+
+{
+  "meta": {
+    "source": "publication/outlet name if identifiable, else empty string",
+    "session": "trading session context if identifiable e.g. 'US Session Close', else empty string",
+    "headline": "one original sentence (your own words) capturing the single biggest takeaway, else empty string"
+  },
+  "macro": {
+    "<each macro id above>": {"cur":"latest reading as stated, keep original units/formatting","prev":"prior reading if stated","cons":"consensus/forecast if stated","d":"up|down|flat|na","note":"your own under-12-word analytical interpretation","src":"short supporting excerpt, a complete sentence, under 220 characters"}
+  },
+  "bias": {
+    "<each asset id above>": {"b":"Bullish|Bearish|Neutral or empty string if not covered","cf":"integer 0-100 confidence, JSON number, or null","pd":"primary driver, under 10 words","br":"key risk to that view, under 10 words","nc":"next catalyst/date if mentioned, else empty string","src":"supporting excerpt"}
+  },
+  "matrix": {
+    "<each asset id above>": {"bd":"bullish drivers, comma-separated, under 15 words","brd":"bearish drivers, comma-separated, under 15 words","cd":"single dominant current driver, under 6 words","b":"Bullish|Bearish|Neutral","cf":"integer 0-100 JSON number or null","src":"supporting excerpt"}
+  },
+  "pos": {
+    "<each theme id above>": {"v":"short 1-4 word read, e.g. 'Risk-On'","tone":"bullish|bearish|neutral|macro|warning|none","src":"supporting excerpt"}
+  },
+  "events": [
+    {"cat":"Fed|Inflation|Central Bank|Energy|Geopolitics|Earnings|Growth|Employment|Trade|Other","t":"time if stated, e.g. '14:00 ET'","dt":"'Today'/'Overnight'/date/empty string","h":"one-sentence headline in your own words","w":"one-sentence why-it-matters in your own analytical words","aa":"comma-separated affected assets from Gold, Nifty, US Equities, US Bonds, Bitcoin, DXY, WTI, Brent","imp":"High|Medium|Low","src":"supporting excerpt"}
+  ],
+  "narratives": [
+    {"n":"short narrative name e.g. 'Fed Pivot'","tone":"bullish|bearish|neutral|macro|warning","s":"integer 0-100 JSON number, strength you assess","aa":"comma-separated affected assets","src":"supporting excerpt"}
+  ],
+  "watchlist": [
+    {"t":"time if known","dt":"date/day if known","e":"event name","f":"forecast figure if stated, else empty string","imp":"High|Medium|Low","aa":"comma-separated affected assets","src":"supporting excerpt"}
+  ],
+  "today": [
+    {"cat":"category","t":"time if known","title":"one-sentence framing of today's specific catalyst","aa":"affected assets","up":"1-2 sentences: read-through across relevant assets if this comes in stronger/hawkish/hotter","down":"1-2 sentences: read-through if it comes in weaker/dovish/cooler","src":"supporting excerpt"}
+  ],
+  "summary": {
+    "bullets": ["4 to 8 strings. This is the most important part of your output. Each bullet is a genuine, strategic, fact-grounded analytical CONCLUSION synthesizing what matters and its cross-asset read-through \u2014 written like a portfolio strategist's morning note, in full sentences, never a copy-pasted line from the source, never a generic restatement. Every bullet must still be traceable to facts actually present in the source text."]
+  }
+}
+
+RULES \u2014 follow every one of these:
+1. Valid JSON only. No trailing commas, no markdown code fences, no text outside the JSON object.
+2. Every key shown above must be present, including empty ones \u2014 use "" for empty strings, null for unset numbers, [] for empty lists. Never omit a key.
+3. Never fabricate a number, date, quote, or fact. When genuinely unsure or unsupported by the text, leave the field empty rather than guessing.
+4. All "src" excerpts must be real, traceable to the supplied text, complete grammatical sentences (never cut off mid-word or mid-clause), under roughly 220 characters.
+5. Bias/tone/direction fields are YOUR analytical judgment inferred from the text's language \u2014 the source text will rarely state "bias: bullish" outright.
+6. For usBonds specifically: rising yields = bearish for bonds, falling yields = bullish for bonds (price/yield are inverse) \u2014 apply this convention when assessing bond bias/positioning.
+7. Keep every section internally consistent \u2014 if a macro figure or asset bias is populated, related "pos" reads and "summary" bullets must not contradict it.
+8. Scan for all five asset classes (Gold, Nifty, US Equities, US Bonds, Bitcoin) and all twelve macro indicators even if most end up empty \u2014 do not skip a section just because it isn't the main topic.
+9. Number fields ("cf" confidence, "s" narrative strength) must be real JSON numbers like 72, never numeric strings like "72", and never missing \u2014 use null only when genuinely no confidence/strength can be assessed.
+10. If the source text is very short, unrelated to markets, or has almost nothing usable, it is correct to return a mostly-empty structure \u2014 do not pad it with invented content.`;
+}
+
+async function callGemini(promptText, opts){
+  opts = opts || {};
+  const controller = new AbortController();
+  const timeout = setTimeout(()=>controller.abort(), opts.timeoutMs || 45000);
+  try{
+    const generationConfig = {
+      temperature: opts.temperature!=null ? opts.temperature : 0.3,
+      maxOutputTokens: opts.maxOutputTokens || 8192,
+    };
+    if(opts.json) generationConfig.responseMimeType = 'application/json';
+    if(opts.thinkingLevel) generationConfig.thinkingConfig = { thinkingLevel: opts.thinkingLevel };
+    let resp;
+    try{
+      resp = await fetch(`${CONFIG.GEMINI_BASE}/${CONFIG.GEMINI_MODEL}:generateContent`, {
+        method: 'POST',
+        headers: { 'Content-Type':'application/json', 'x-goog-api-key': CONFIG.GEMINI_API_KEY },
+        signal: controller.signal,
+        body: JSON.stringify({
+          contents: opts.contents || [{ role:'user', parts:[{ text: promptText }] }],
+          generationConfig
+        })
+      });
+    }catch(networkErr){
+      if(networkErr.name==='AbortError') throw new Error('Gemini request timed out.');
+      throw new Error('Could not reach Gemini from the browser \u2014 check your connection.');
+    }
+    if(!resp.ok){
+      let detail = '';
+      try{ const errJson = await resp.json(); detail = (errJson && errJson.error && errJson.error.message) || ''; }catch(e){}
+      throw new Error(`Gemini API error ${resp.status}${detail ? ': '+detail : ''}`);
+    }
+    const data = await resp.json();
+    if(data.promptFeedback && data.promptFeedback.blockReason){
+      throw new Error('Gemini blocked this request: '+data.promptFeedback.blockReason);
+    }
+    const parts = (data.candidates && data.candidates[0] && data.candidates[0].content && data.candidates[0].content.parts) || [];
+    const text = parts.map(p=>p.text||'').join('').trim();
+    if(!text) throw new Error('Gemini returned an empty response.');
+    return text;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+function parseJsonLoose(text){
+  let t = text.trim();
+  if(t.startsWith('```')){ t = t.replace(/^```(json)?/i,'').replace(/```$/,'').trim(); }
+  return JSON.parse(t);
+}
+async function summarizeWithGemini(rawText, opts){
+  const prompt = buildGeminiPrompt(rawText, opts);
+  const text = await callGemini(prompt, { json:true, temperature:0.25, maxOutputTokens:8192, thinkingLevel:'high' });
+  return parseJsonLoose(text);
+}
+
+/* ==========================================================================
+   LIVE NEWS SEARCH \u2014 NewsAPI.org
+   ========================================================================== */
+async function fetchLiveNews(keyword){
+  const url = `${CONFIG.NEWS_API_BASE}/everything?q=${encodeURIComponent(keyword)}&language=en&sortBy=publishedAt&pageSize=10&apiKey=${CONFIG.NEWS_API_KEY}`;
+  let resp;
+  try{
+    resp = await fetch(url);
+  }catch(networkErr){
+    throw new Error('Could not reach NewsAPI from the browser \u2014 if this key is on the free Developer plan, it only allows requests from localhost, not a deployed domain.');
+  }
+  const data = await resp.json().catch(()=>null);
+  if(data && data.code === 'corsNotAllowed'){
+    throw new Error('NewsAPI blocked this browser request \u2014 its free Developer plan only allows calls from localhost. Put this behind a backend proxy, or upgrade the plan, to search from a live domain.');
+  }
+  if(!resp.ok || !data || data.status !== 'ok'){
+    throw new Error((data && data.message) || `NewsAPI error (${resp.status})`);
+  }
+  return Array.isArray(data.articles) ? data.articles : [];
+}
+
+/* ==========================================================================
+   FILE UPLOAD \u2014 .txt / .docx / .pdf \u2192 plain text, then straight into the
+   same handleNewIntelligence() pipeline a manual paste already uses
+   ========================================================================== */
+let _mammothPromise = null, _pdfjsPromise = null;
+function ensureMammoth(){
+  if(!_mammothPromise) _mammothPromise = loadScript('https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.11.0/mammoth.browser.min.js');
+  return _mammothPromise;
+}
+function ensurePdfJs(){
+  if(!_pdfjsPromise){
+    _pdfjsPromise = loadScript('https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js').then(()=>{
+      window.pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js';
+    });
+  }
+  return _pdfjsPromise;
+}
+async function extractTextFromFile(file){
+  const name = file.name || '';
+  const ext = name.split('.').pop().toLowerCase();
+  if(ext === 'txt' || file.type === 'text/plain') return await file.text();
+  if(ext === 'docx'){
+    await ensureMammoth();
+    const buf = await file.arrayBuffer();
+    const result = await window.mammoth.extractRawText({ arrayBuffer: buf });
+    return result.value || '';
+  }
+  if(ext === 'pdf'){
+    await ensurePdfJs();
+    const buf = await file.arrayBuffer();
+    const pdf = await window.pdfjsLib.getDocument({ data: buf }).promise;
+    let text = '';
+    for(let i=1; i<=pdf.numPages; i++){
+      const page = await pdf.getPage(i);
+      const content = await page.getTextContent();
+      text += content.items.map(it=>it.str).join(' ') + '\n\n';
+    }
+    return text;
+  }
+  throw new Error('Unsupported file type \u2014 upload a .txt, .docx, or .pdf file.');
+}
+function setUploadStatus(msg){
+  const el = $('#uploadStatusPill');
+  if(!el) return;
+  if(!msg){ el.classList.add('hidden'); el.textContent=''; }
+  else { el.textContent = msg; el.classList.remove('hidden'); }
+}
+async function handleFileUpload(file){
+  if(!file) return;
+  setUploadStatus(`Reading ${file.name}\u2026`);
+  try{
+    const text = await extractTextFromFile(file);
+    if(!text || text.trim().length < 20){
+      showError(`Couldn\u2019t find readable text in ${file.name}.`);
+      return;
+    }
+    setUploadStatus(`Analyzing ${file.name}\u2026`);
+    await handleNewIntelligence(text, { sourceLabel: `Uploaded file: ${file.name}` });
+  }catch(err){
+    console.error(err);
+    showError(`Couldn\u2019t read ${file.name}: ${err.message || 'unknown error'}`);
+  }finally{
+    setUploadStatus('');
+  }
+}
+
+/* ==========================================================================
+   GLOBAL SEARCH \u2014 keyword \u2192 live news \u2192 Gemini synthesis, shown in a
+   popup with full un-truncated detail AND merged into the terminal boards
+   through the exact same merge pipeline a manual paste uses
+   ========================================================================== */
+let isSearching = false;
+function openSearch(){
+  $('#searchOverlay').classList.remove('hidden');
+  $('#globalSearchInput').focus();
+}
+function closeSearch(){ $('#searchOverlay').classList.add('hidden'); }
+function renderSearchLoading(keyword){
+  $('#searchModalBody').innerHTML = `<div class="search-loading"><span class="spinner"></span>Pulling live coverage on \u201c${esc(keyword)}\u201d and structuring it\u2026</div>`;
+}
+function renderSearchError(msg){
+  $('#searchModalBody').innerHTML = `<div class="search-empty">${esc(msg)}</div>`;
+}
+function renderSearchResults(keyword, articles, structured, foundCount){
+  let html = '';
+  if(foundCount > 0){
+    html += `<div class="search-applied-note">\u2713 Loaded ${foundCount} new signal${foundCount===1?'':'s'} into the terminal boards below</div>`;
+  }
+  const bullets = (structured && structured.summary && structured.summary.bullets) || [];
+  const headline = structured && structured.meta && structured.meta.headline;
+  if(headline || bullets.length){
+    html += `<div class="search-section-title">Live Synthesis</div>`;
+    if(headline) html += `<div class="search-synthesis-item" style="font-weight:600;color:var(--text)">${esc(headline)}</div>`;
+    html += bullets.map(b=>`<div class="search-synthesis-item">${esc(b)}</div>`).join('');
+  } else if(structured){
+    html += `<div class="search-section-title">Live Synthesis</div><div class="search-synthesis-item">Gemini couldn\u2019t extract a clear structured synthesis for \u201c${esc(keyword)}\u201d \u2014 see the raw articles below.</div>`;
+  }
+  html += `<div class="search-section-title">Articles Found (${articles.length})</div>`;
+  if(!articles.length){
+    html += `<div class="search-empty">No recent articles found for \u201c${esc(keyword)}\u201d.</div>`;
+  } else {
+    html += articles.map(a=>{
+      const desc = trimToCompleteSentences(a.description || a.content || '', 400);
+      const srcName = (a.source && a.source.name) || 'Unknown Source';
+      return `<div class="search-article">
+        <div class="search-article-top"><span class="search-article-source">${esc(srcName)}</span><span class="search-article-time mono">${esc(fmtPublishedAt(a.publishedAt))}</span></div>
+        <div class="search-article-title">${esc(a.title||'')}</div>
+        ${desc? `<div class="search-article-desc">${esc(desc)}</div>` : ''}
+        ${a.url? `<a class="search-article-link" href="${esc(a.url)}" target="_blank" rel="noopener noreferrer">Read full article \u2192</a>` : ''}
+      </div>`;
+    }).join('');
+  }
+  $('#searchModalBody').innerHTML = html;
+}
+async function runGlobalSearch(keyword){
+  keyword = (keyword||'').trim();
+  if(!keyword || isSearching) return;
+  isSearching = true;
+  $('#globalSearchGo').disabled = true;
+  renderSearchLoading(keyword);
+  try{
+    const articles = await fetchLiveNews(keyword);
+    if(!articles.length){ renderSearchResults(keyword, [], null, 0); return; }
+    const combinedText = articles.slice(0,10).map((a,i)=>{
+      const srcName = (a.source && a.source.name) || 'Unknown';
+      return `Article ${i+1} \u2014 ${srcName} (${a.publishedAt||''}):\n${a.title||''}\n${a.description||''}\n${stripNewsApiTruncation(a.content||'')}`;
+    }).join('\n\n---\n\n');
+    let structured = null, foundCount = 0;
+    try{
+      const rawStructured = await summarizeWithGemini(combinedText, { keyword, sourceLabel: `Live news search: "${keyword}"` });
+      structured = normalizeDataset(rawStructured);
+      const merged = mergeWithPrevious(structured, dataset);
+      if(merged.foundCount > 0){
+        dataset = merged.data; isDemo = false; lastUpdatedAt = new Date();
+        lastFoundCount = merged.foundCount; lastEngine = 'gemini'; foundCount = merged.foundCount;
+        renderAll(); persistDataset(dataset, false);
+      }
+    }catch(geminiErr){ console.warn('Gemini structuring failed for search', geminiErr); }
+    renderSearchResults(keyword, articles, structured, foundCount);
+  }catch(err){
+    console.error(err);
+    renderSearchError(err.message || 'Search failed \u2014 please try again.');
+  }finally{
+    isSearching = false;
+    $('#globalSearchGo').disabled = false;
+  }
+}
+
+/* ==========================================================================
+   TERMINAL ASSISTANT \u2014 Gemini-powered chat, grounded in the current
+   dataset plus the same explainer text the detail modal uses, so answers
+   stay tied to what's actually on screen instead of drifting off it
+   ========================================================================== */
+let chatHistory = [];
+let isChatting = false;
+const CHAT_GREETING = 'Hi \u2014 I\u2019m the terminal assistant. Ask me what any card, figure, or section means, why a bias or score reads the way it does, or how a number got onto the dashboard. I can only speak to what\u2019s currently loaded here, and I\u2019m not a substitute for your own judgment or a licensed advisor on actual trading decisions.';
+function openChat(){
+  $('#chatPanel').classList.remove('hidden');
+  if(chatHistory.length === 0){ chatHistory.push({role:'model', text:CHAT_GREETING}); renderChatMessages(); }
+  $('#chatInput').focus();
+}
+function closeChat(){ $('#chatPanel').classList.add('hidden'); }
+function buildDatasetDigest(){
+  if(!dataset) return 'No dataset is currently loaded \u2014 the dashboard is empty (awaiting a paste, upload, or search).';
+  const lines = [];
+  lines.push(`Headline: ${dataset.meta.headline || '(none)'}`);
+  lines.push(`Source: ${dataset.meta.source || '(unlabeled)'} | Session: ${dataset.meta.session || '(unlabeled)'} | Demo data: ${isDemo?'yes':'no'}`);
+  const macroLines = MACRO_DEFS.map(m=>{ const v=dataset.macro[m.id]; return v.cur? `${m.label}: ${v.cur}${v.prev?' (prev '+v.prev+')':''} [${v.d}] \u2014 ${v.note||''}` : null; }).filter(Boolean);
+  if(macroLines.length) lines.push('MACRO:\n'+macroLines.join('\n'));
+  const biasLines = ASSET_DEFS.map(a=>{ const v=dataset.bias[a.id]; return v.b? `${a.label}: ${v.b}${v.cf!=null?' ('+v.cf+'% confidence)':''} \u2014 driver: ${v.pd||'n/a'}; risk: ${v.br||'n/a'}` : null; }).filter(Boolean);
+  if(biasLines.length) lines.push('ASSET BIAS:\n'+biasLines.join('\n'));
+  const posLines = dataset.pos.filter(p=>p.v).map(p=>`${p.label}: ${p.v} (${p.tone})`);
+  if(posLines.length) lines.push('POSITIONING THEMES:\n'+posLines.join('\n'));
+  if(dataset.events.length) lines.push('MARKET MOVING EVENTS:\n'+dataset.events.map(e=>`- [${e.imp}] ${e.h} \u2014 ${e.w}`).join('\n'));
+  if(dataset.narratives.length) lines.push('NARRATIVES:\n'+dataset.narratives.map(n=>`- ${n.n} (${n.tone}, strength ${n.s}) \u2014 affects ${n.aa}`).join('\n'));
+  if(dataset.watchlist.length) lines.push('WATCHLIST (upcoming):\n'+dataset.watchlist.map(w=>`- ${w.dt} ${w.t}: ${w.e}${w.f?' (forecast '+w.f+')':''} [${w.imp}]`).join('\n'));
+  if(dataset.today.length) lines.push('TODAY\u2019S FOCUS:\n'+dataset.today.map(t=>`- ${t.title} | if stronger: ${t.up} | if weaker: ${t.down}`).join('\n'));
+  const score = computeRiskScore();
+  lines.push(`Composite risk/positioning gauge: ${score!=null ? score : 'n/a'} (\u2212100 risk-off \u2026 +100 risk-on)`);
+  if(dataset.summary.bullets.length) lines.push('SESSION SUMMARY BULLETS:\n'+dataset.summary.bullets.map(b=>'- '+b).join('\n'));
+  return lines.join('\n\n');
+}
+function buildChatSystemPrompt(){
+  const explainText = Object.entries(EXPLAIN_TEXT).map(([k,v])=>`- ${k}: ${v}`).join('\n');
+  return `You are the embedded assistant inside the Ashford Capital Market Intelligence Terminal, a single-page trading dashboard. You help the person reading it understand the dashboard itself: what each section/card/figure means, how it was derived, and how to read it \u2014 you do not give personalized trading or investment advice or predictions. If asked to recommend a trade or make a prediction, say plainly that's outside what you're here for and steer back to explaining what the dashboard shows, encouraging the user's own judgement or a licensed advisor for actual decisions.
+
+HOW EACH SECTION IS DERIVED (use this to explain mechanics accurately):
+${explainText}
+
+CURRENT DASHBOARD CONTENTS (this is the ONLY market data you know about \u2014 never invent a figure, price, or fact that isn't in here or in the raw source excerpt below; if asked about something this dashboard doesn't cover, say so plainly instead of guessing):
+${buildDatasetDigest()}
+${lastRawText ? `\nRAW SOURCE TEXT LAST FED INTO THE TERMINAL (for extra context if useful, truncated):\n"""\n${lastRawText.slice(0,6000)}\n"""` : ''}
+
+Answer concisely and directly \u2014 a sentence or a short paragraph for most questions, longer only if the question genuinely needs it. No markdown headers. This is a professional terminal; keep the tone precise and grounded, not chatty.`;
+}
+function renderChatMessages(){
+  const wrap = $('#chatMessages');
+  wrap.innerHTML = chatHistory.map(m=>`<div class="chat-msg ${m.role}${m.error?' error':''}">${esc(m.text)}</div>`).join('')
+    + (isChatting ? `<div class="chat-msg typing model"><span class="chat-dot"></span><span class="chat-dot"></span><span class="chat-dot"></span></div>` : '');
+  wrap.scrollTop = wrap.scrollHeight;
+}
+async function sendChatMessage(text){
+  text = (text||'').trim();
+  if(!text || isChatting) return;
+  chatHistory.push({role:'user', text});
+  isChatting = true;
+  renderChatMessages();
+  try{
+    const systemPrompt = buildChatSystemPrompt();
+    const contents = [
+      { role:'user', parts:[{ text: systemPrompt }] },
+      { role:'model', parts:[{ text: 'Understood \u2014 I\u2019ll stick to explaining this dashboard and its data, grounded only in what\u2019s shown.' }] },
+      ...chatHistory.slice(-16).map(m=>({ role: m.role==='user'?'user':'model', parts:[{text:m.text}] }))
+    ];
+    const reply = await callGemini(null, { contents, temperature:0.4, maxOutputTokens:1024 });
+    chatHistory.push({role:'model', text:reply});
+  }catch(err){
+    console.error(err);
+    chatHistory.push({role:'model', text:`Couldn\u2019t reach Gemini: ${err.message||'unknown error'}`, error:true});
+  }finally{
+    isChatting = false;
+    renderChatMessages();
+  }
+}
+
 /* ============================================================
    MERGE — combines a fresh (partial) extraction with whatever's
    already on screen. Per spec: a new paste updates only the
@@ -1681,6 +2099,7 @@ function renderStatusPills(){
   pills.push(`<span class="pill">${esc(computeMarketSession())}</span>`);
   const refreshTxt = (typeof lastFoundCount==='number') ? `Signals: ${lastFoundCount} Found` : (dataset ? 'Refresh: Up To Date' : 'Refresh: —');
   pills.push(`<span class="pill">${refreshTxt}</span>`);
+  if(lastEngine) pills.push(`<span class="pill${lastEngine==='local'?' pill--warn':''}">Engine: ${lastEngine==='gemini'?'Gemini':'Local Fallback'}</span>`);
   pills.push(isParsing ? `<span class="pill pill--parsing">Parsing…</span>` : `<span class="pill">Parse: Idle</span>`);
   $('#statusPills').innerHTML = pills.join('');
 }
@@ -1974,39 +2393,26 @@ function renderSummary(){
    note on the extraction logic behind that section.
    ============================================================ */
 const EXPLAIN_TEXT = {
-  macro: 'Figures are matched from the pasted text using indicator-specific keyword patterns, then classified as current / prior / consensus based on nearby comparison language ("from", "vs", "consensus"). The trend arrow compares the current and prior figures directly whenever both are present.',
-  bias: 'Bias is derived from bullish vs. bearish language found near each mention of the asset in the pasted text (e.g. "rallied", "sold off", "buoyed by"). Confidence reflects how one-sided that language was, and whether strong or hedged wording appeared nearby. Bond bias specifically inverts yield language — falling yields read bullish for bonds, not bearish.',
-  pos: 'This theme reads bullish/bearish/hawkish/dovish language near its keyword, cross-checked against the matching macro or asset reading where one exists (e.g. the Dollar theme follows the DXY tile, the Gold theme follows the Gold bias card) so this panel never contradicts the tiles above it.',
-  event: 'Selected as one of the highest-signal sentences in the pasted text — ranked by how many market-relevant keywords (macro terms, asset names, category terms, sentiment words, explicit times) it contains. Market Moving Events uses a higher signal bar than the Watchlist so this list stays genuinely market-moving.',
-  narrative: 'Matched against a dictionary of common institutional narrative phrases (e.g. "risk-off", "dovish pivot", "sticky inflation"). Strength scales with how often that phrase family appears in the text.',
-  watchlist: 'Uses the same sentence-scoring as Market Moving Events, filtered to forward-looking language ("due", "scheduled", "ahead of", weekday references) instead of already-happened language.',
-  today: 'Filtered from the same scored sentences to items referencing "today" or a bare clock time with no other day mentioned nearby. The two scenarios below are general, textbook market relationships for this event category — not a prediction of which way it will actually go.',
+  macro: 'Gemini reads the full source text (pasted, uploaded, or pulled from a live news search) and pulls out any of these indicators it explicitly discusses, classifying each reading as current / prior / consensus and assessing the trend direction. A figure only appears here if the source text actually stated it — nothing is estimated.',
+  bias: 'Gemini assesses directional bias from the bullish/bearish language surrounding each asset in the source text (e.g. "rallied", "sold off", "buoyed by") rather than matching fixed keywords, so it can weigh mixed or hedged language the way an analyst would. Confidence reflects how one-sided and explicit that language was. Bond bias specifically inverts yield language — falling yields read bullish for bonds, not bearish.',
+  pos: 'This theme is Gemini\u2019s read of the bullish/bearish/hawkish/dovish tone around its topic in the source text, cross-checked for consistency against the matching macro or asset reading where one exists (e.g. the Dollar theme should track the DXY tile, the Gold theme should track the Gold bias card).',
+  event: 'Selected by Gemini as one of the most market-moving developments actually described in the source text, ranked by importance. Market Moving Events favors a higher bar than the Watchlist so this list stays genuinely significant.',
+  narrative: 'Gemini\u2019s read of the dominant themes running through the source text (e.g. "risk-off", "dovish pivot", "sticky inflation"), with a strength score reflecting how central that theme was to the text.',
+  watchlist: 'The same event-significance read as Market Moving Events, filtered to forward-looking items — things scheduled or due, rather than things that already happened.',
+  today: 'Items Gemini identified as specifically relevant to today\u2019s session. The two scenarios below are general, textbook market relationships for this event category — not a prediction of which way it will actually go.',
   'risk-gauge': 'A weighted average of every asset\u2019s bias (Bullish +1 / Neutral 0 / Bearish \u22121), weighted by that asset\u2019s confidence score, rescaled to \u2212100…+100.',
-  summary: 'Bullet points are the highest-scoring sentences from the most recently parsed text — the same scoring used to build Market Moving Events, just with a lower bar so the recap stays comprehensive. A thin follow-up paste won\u2019t overwrite a substantial existing summary.',
+  summary: 'These bullets are Gemini\u2019s own synthesized, strategic conclusions from the most recently analyzed text — not sentences copied out of it — covering what matters and its likely read-through across asset classes. A thin follow-up update won\u2019t overwrite a substantial existing summary.',
 };
-function highlightSourceText(src) {
-  if (!src) return '';
-  let escaped = esc(src);
-  const numRegex = /(-?\$?\d[\d,]*(\.\d+)?%?\s?(?:bps|bp|bbl)?)/g;
-  escaped = escaped.replace(numRegex, '<span class="hl-number">$1</span>');
-  const keywordRegex = /\b(Fed|FOMC|Reserve|Powell|cpi|ppi|yields?|rate|cuts?|hikes?|gold|nifty|bitcoin|btc|dollar|dxy|crude|oil|wti|brent|vix|bullish|bearish|disinflation|hawkish|dovish|inflation|growth|liquidity|rally|selloff|recession)\b/gi;
-  escaped = escaped.replace(keywordRegex, '<span class="hl-keyword">$1</span>');
-  return escaped;
-}
-
 function detailRow(k, v){ return `<div class="detail-row"><span class="detail-k">${esc(k)}</span><span class="detail-v">${v}</span></div>`; }
 function detailSourceBlock(src){
   const fallback = isDemo
     ? 'This is the sample preview dataset, not something extracted from pasted text — load your own text to see a real source excerpt here.'
     : 'Not found in the pasted text \u2014 this value is either still showing an earlier paste\u2019s data, or hasn\u2019t been mentioned yet.';
-  return `<div class="detail-section-title">Source Text</div><div class="detail-source">${src ? '“' + highlightSourceText(src) + '”' : fallback}</div>`;
+  return `<div class="detail-section-title">Source Text</div><div class="detail-source">${src ? '\u201C'+esc(src)+'\u201D' : fallback}</div>`;
 }
 function detailExplainBlock(type){
   return `<div class="detail-section-title">Why This Shows What It Shows</div><div class="detail-explain">${EXPLAIN_TEXT[type]||''}</div>`;
 }
-
-let activeSessionId = null; // tracking active history session
-
 function openDetail(type, id){
   if(!dataset) return;
   let eyebrow='', title='', body='';
@@ -2075,32 +2481,7 @@ function openDetail(type, id){
     const b = dataset.summary.bullets[id];
     eyebrow='Session Summary'; title='Recap Point';
     body = detailRow('Bullet', b?esc(b):'—') + detailExplainBlock('summary');
-  } else if(type==='export'){
-    eyebrow='Reporting & Export Center'; title='Daily Intelligence Briefing';
-    const rawBrief = generateBriefingText();
-    body = `
-      <div style="display:flex; gap: 8px; margin-bottom: 12px;">
-        <button class="btn btn--action" onclick="window.triggerJsonExport()">Download JSON</button>
-        <button class="btn btn--action" onclick="window.triggerCsvExport()">Download CSV</button>
-        <button class="btn" onclick="window.copyBriefingToClipboard()">Copy to Clipboard</button>
-      </div>
-      <textarea class="comment-box" id="briefingTextArea" readonly style="height: 350px; font-family: var(--font-mono); font-size:11px; line-height:1.45; white-space:pre;">${esc(rawBrief)}</textarea>
-    `;
   } else { return; }
-
-  // Append analyst commentary block if it's a standard detail type
-  if (type !== 'export' && type !== 'risk-gauge' && type !== 'summary') {
-    const commentKey = type + '_' + id;
-    const currentComment = activeCommentOverrides[commentKey] || '';
-    body += `
-      <div class="detail-section-title" style="margin-top: 15px;">Desk Commentary & Overrides</div>
-      <textarea class="comment-box" id="detailCommentBox" placeholder="Add custom analyst notes, desk overrides, or commentary for this metric...">${esc(currentComment)}</textarea>
-      <div style="display:flex; justify-content: flex-end;">
-        <button class="comment-save-btn" onclick="window.saveAnalystComment('${commentKey}')">Save Commentary</button>
-      </div>
-    `;
-  }
-
   $('#detailEyebrow').textContent = eyebrow;
   $('#detailTitle').textContent = title;
   $('#detailBody').innerHTML = body;
@@ -2117,960 +2498,68 @@ function renderAll(){
 /* ============================================================
    ERROR BANNER
    ============================================================ */
-function showError(msg){ $('#errorText').textContent = msg; $('#errorBanner').classList.remove('hidden'); }
+function showError(msg, tone){
+  const banner = $('#errorBanner');
+  banner.classList.toggle('warn-tone', tone==='warn');
+  $('#errorText').textContent = msg;
+  banner.classList.remove('hidden');
+}
 function clearError(){ $('#errorBanner').classList.add('hidden'); }
 
 /* ============================================================
    ORCHESTRATION — paste-to-refresh
    ============================================================ */
-async function handleNewIntelligence(rawText){
+async function handleNewIntelligence(rawText, opts){
+  opts = opts || {};
   if(isParsing) return;
-  if(!rawText || rawText.trim().length < 20){ showError('Paste more complete intelligence text — input looks too short to parse.'); return; }
+  if(!rawText || rawText.trim().length < 20){ showError('That text looks too short to analyze — paste a fuller excerpt.'); return; }
   isParsing = true;
   lastRawText = rawText;
   clearError();
   renderStatusPills();
   $('#retryBtn').classList.add('spin');
+  let usedFallback = false;
   try{
-    // brief pause purely so the "Parsing…" state is perceptible — the local
-    // engine itself resolves in milliseconds, no network round-trip involved
-    await new Promise(r=>setTimeout(r, 220));
-    const rawExtracted = extractIntelligenceLocal(rawText);
+    let rawExtracted;
+    try{
+      rawExtracted = await summarizeWithGemini(rawText, { sourceLabel: opts.sourceLabel || 'Pasted market intelligence text' });
+    }catch(geminiErr){
+      console.warn('Gemini summarization failed, falling back to the local parser', geminiErr);
+      usedFallback = true;
+      await new Promise(r=>setTimeout(r, 150)); // keep the "Parsing…" state perceptible
+      rawExtracted = extractIntelligenceLocal(rawText);
+    }
     const fresh = normalizeDataset(rawExtracted);
     const { data, foundCount } = mergeWithPrevious(fresh, dataset);
     if(foundCount === 0){
-      showError('Couldn\u2019t find any recognizable market intelligence in that text — try pasting a fuller excerpt.');
+      showError(usedFallback
+        ? 'Gemini was unavailable and the local backup parser couldn\u2019t find recognizable market intelligence either — try different text.'
+        : 'Couldn\u2019t find any recognizable market intelligence in that text — try pasting a fuller excerpt.');
     } else {
       dataset = data;
       isDemo = false;
       lastUpdatedAt = new Date();
       lastFoundCount = foundCount;
+      lastEngine = usedFallback ? 'local' : 'gemini';
       renderAll();
-      if (typeof updateCharts === 'function') updateCharts();
       persistDataset(dataset, false);
-      $('#pasteZone').value = '';
-      $('#pasteZone').style.height = '';
+      if(!opts.keepInput){
+        $('#pasteZone').value = '';
+        $('#pasteZone').style.height = '';
+      }
+      if(usedFallback){
+        showError('Gemini summarization was unavailable, so this update used the local backup parser instead — figures may be less nuanced than usual.', 'warn');
+      }
     }
   }catch(err){
     console.error(err);
-    showError('Parsing failed — please try again with different text.');
+    showError('Analysis failed — please try again with different text.');
   }finally{
     isParsing = false;
     $('#retryBtn').classList.remove('spin');
     renderStatusPills();
   }
 }
-
-/* ============================================================
-   ENHANCEMENTS - SAVED SESSIONS VAULT
-   ============================================================ */
-const SESSIONS_STORAGE_KEY = 'ashford_terminal_saved_sessions';
-let activeCommentOverrides = {}; // active session analyst comments (detail-id -> text)
-
-function getSavedSessions() {
-  try {
-    const raw = localStorage.getItem(SESSIONS_STORAGE_KEY);
-    return raw ? JSON.parse(raw) : [];
-  } catch(e) {
-    console.error('Failed to load saved sessions', e);
-    return [];
-  }
-}
-
-function saveSessions(sessions) {
-  try {
-    localStorage.setItem(SESSIONS_STORAGE_KEY, JSON.stringify(sessions));
-  } catch(e) {
-    console.error('Failed to save sessions', e);
-  }
-}
-
-function saveCurrentSession() {
-  if (!dataset) {
-    showError('No active dataset to save. Please load a sample or paste a briefing.');
-    return;
-  }
-  const sessions = getSavedSessions();
-  const timestamp = Date.now();
-  const dateStr = new Date().toISOString().slice(0, 19).replace('T', ' ');
-  const headline = dataset.meta.headline || 'Market Briefing';
-  const name = prompt('Enter a name for this saved session:', `Briefing - ${headline} (${dateStr})`);
-  if (name === null) return; // user cancelled
-  
-  const newSession = {
-    id: timestamp,
-    name: name || `Briefing - ${dateStr}`,
-    timestamp: timestamp,
-    dataset: dataset,
-    commentOverrides: activeCommentOverrides || {}
-  };
-  sessions.push(newSession);
-  saveSessions(sessions);
-  renderSavedSessions();
-}
-
-function loadSavedSession(id) {
-  const sessions = getSavedSessions();
-  const session = sessions.find(s => s.id === id);
-  if (!session) {
-    showError('Session not found.');
-    return;
-  }
-  dataset = session.dataset;
-  isDemo = false;
-  lastUpdatedAt = new Date(session.timestamp);
-  lastFoundCount = null;
-  
-  // Apply any saved comment overrides
-  activeCommentOverrides = session.commentOverrides || {};
-  
-  renderAll();
-  updateCharts();
-  
-  // Highlight loaded session card in UI
-  const items = document.querySelectorAll('.session-item');
-  items.forEach(el => {
-    if (parseInt(el.getAttribute('data-id')) === id) {
-      el.style.borderColor = 'var(--macro)';
-    } else {
-      el.style.borderColor = 'var(--border-soft)';
-    }
-  });
-}
-
-function deleteSavedSession(id, event) {
-  if (event) event.stopPropagation();
-  if (!confirm('Are you sure you want to delete this session?')) return;
-  let sessions = getSavedSessions();
-  sessions = sessions.filter(s => s.id !== id);
-  saveSessions(sessions);
-  renderSavedSessions();
-}
-
-function renderSavedSessions() {
-  const listEl = $('#savedSessionsList');
-  if (!listEl) return;
-  const sessions = getSavedSessions();
-  if (sessions.length === 0) {
-    listEl.innerHTML = `<div class="empty-state" style="padding:15px;">No saved history vaults found.</div>`;
-    return;
-  }
-  
-  listEl.innerHTML = sessions.map(s => {
-    const dStr = new Date(s.timestamp).toLocaleDateString() + ' ' + new Date(s.timestamp).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
-    return `
-      <div class="session-item" data-id="${s.id}" onclick="window.loadSavedSession(${s.id})">
-        <div class="session-info">
-          <div class="session-name" title="${esc(s.name)}">${esc(s.name)}</div>
-          <div class="session-meta">${dStr}</div>
-        </div>
-        <div class="session-actions">
-          <button class="session-btn" onclick="window.deleteSavedSession(${s.id}, event)" title="Delete session">×</button>
-        </div>
-      </div>
-    `;
-  }).join('');
-}
-
-// Bind to window for HTML onclick attributes
-window.loadSavedSession = loadSavedSession;
-window.deleteSavedSession = deleteSavedSession;
-
-/* ============================================================
-   ENHANCEMENTS - LIVE NEWS FEED SIMULATOR
-   ============================================================ */
-const SIMULATED_FEEDS = {
-  cpi: `FLASH: Headline CPI cooled to 2.9% y/y in October, down from 3.1% in September and beating the 3.0% consensus. Core CPI also eased to 3.4% vs 3.5% prior. Treasury yields fell sharply on the news, with the 10Y yield sliding to 3.85% and the 2Y yield crashing to 4.10%. The Federal Funds Rate remains at 5.50% but markets are now pricing in a 25bps cut in November with 90% confidence. DXY fell to 101.8 on broad dollar weakness, supporting gold to a fresh high of $2045. WTI crude stabilized at $74.50. US equities rallied strongly with S&P 500 up 1.2% led by growth stocks. Bitcoin rose to $64,500 amid risk-on flows. Nifty 50 surged as FII inflows resumed on rate-cut bets.`,
-  fed: `FED UPDATE: The Federal Reserve held the Federal Funds Rate steady at 5.50% this afternoon. However, the dot plot and Chairman Powell's commentary delivered a hawkish surprise, emphasizing that rates must stay higher-for-longer as sticky inflation remains a persistent risk. Core inflation measures are still elevated, and the Fed is prepared to raise rates further if needed. The 10Y Treasury yield spiked to 4.45% and the 2Y yield rose to 4.85%. DXY surged to 105.8, putting heavy pressure on commodities and gold which plunged to $1950. US equities slumped on the hawkish tone, with the S&P 500 down 1.4%. Bitcoin suffered a selloff, sliding to $58,200 as liquidity expectations tightened. Volatility spiked, with the VIX rising to 18.2.`,
-  opec: `COMMODITY ALERT: OPEC+ announced a surprise voluntary production cut of 1.2 million barrels per day through Q1, triggering a massive supply shock. WTI crude spiked to $88.50 a barrel, and Brent surged to $92.00, raising serious concerns over sticky inflation. Headline PPI is expected to accelerate next month on the back of rising energy costs. Bond markets reacted negatively, with the 10Y yield rising to 4.25% as inflation expectations firmed. The dollar index (DXY) held steady at 104.2. Gold was supported as a safe-haven asset, rising to $2010 despite higher yields. Nifty 50 was under pressure, falling 0.8% as a higher crude price weighs on the Indian currency and stokes domestic inflation.`,
-  calm: `MIDDAY WRAP: Calm summer trading persists across global desks with minimal volume and a range-bound layout. S&P 500 held steady, unchanged on the day. The Federal Funds Rate is unchanged at 5.50%, and no major macro releases are scheduled until next week's retail sales data. The 10Y Treasury yield was flat at 4.12%, while the 2Y yield hovered at 4.38%. The dollar index (DXY) was steady at 103.1, keeping gold consolidation intact near $1985. WTI crude hovered at $77.80. Bitcoin consolidated near $61,200 with decelerating ETF flows, while Nifty 50 closed flat. The VIX fell to a three-month low of 12.5, highlighting the complete compression of volatility.`
-};
-
-function triggerSimulation(type) {
-  if (!type || !SIMULATED_FEEDS[type]) return;
-  const text = SIMULATED_FEEDS[type];
-  const pasteZone = $('#pasteZone');
-  if (pasteZone) {
-    pasteZone.value = text;
-    pasteZone.style.height = 'auto';
-    pasteZone.style.height = pasteZone.scrollHeight + 'px';
-  }
-  handleNewIntelligence(text);
-}
-
-/* ============================================================
-   ENHANCEMENTS - ANALYTICAL CHARTING HUB
-   ============================================================ */
-let confidenceChartInstance = null;
-let narrativeChartInstance = null;
-
-function updateCharts() {
-  if (typeof Chart === 'undefined') {
-    console.warn('Chart.js is not loaded.');
-    return;
-  }
-  if (!dataset) return;
-  
-  // 1. CONFIDENCE CHART
-  const confCanvas = document.getElementById('confidenceChart');
-  if (confCanvas) {
-    if (confidenceChartInstance) {
-      confidenceChartInstance.destroy();
-    }
-    
-    const labels = ASSET_DEFS.map(def => def.label);
-    const data = ASSET_DEFS.map(def => {
-      const b = dataset.bias[def.id];
-      return b && b.cf != null ? b.cf : 0;
-    });
-    const colors = ASSET_DEFS.map(def => {
-      const b = dataset.bias[def.id];
-      if (!b || !b.b) return '#252D38';
-      const tone = b.b.toLowerCase();
-      if (tone === 'bullish') return '#2FBF71';
-      if (tone === 'bearish') return '#F2453D';
-      return '#F0A63D';
-    });
-    
-    confidenceChartInstance = new Chart(confCanvas, {
-      type: 'bar',
-      data: {
-        labels: labels,
-        datasets: [{
-          data: data,
-          backgroundColor: colors,
-          borderColor: 'transparent',
-          borderWidth: 0,
-          barPercentage: 0.6
-        }]
-      },
-      options: {
-        indexAxis: 'y',
-        responsive: true,
-        maintainAspectRatio: false,
-        plugins: {
-          legend: { display: false },
-          tooltip: {
-            callbacks: {
-              label: (ctx) => `Confidence: ${ctx.raw}%`
-            }
-          }
-        },
-        scales: {
-          x: {
-            min: 0,
-            max: 100,
-            grid: { color: '#1B222C' },
-            ticks: { color: '#8D96A6', font: { size: 9, family: 'IBM Plex Mono' } }
-          },
-          y: {
-            grid: { display: false },
-            ticks: { color: '#EDF1F7', font: { size: 9, family: 'IBM Plex Sans' } }
-          }
-        }
-      }
-    });
-  }
-  
-  // 2. NARRATIVE CHART
-  const narrCanvas = document.getElementById('narrativeChart');
-  if (narrCanvas) {
-    if (narrativeChartInstance) {
-      narrativeChartInstance.destroy();
-    }
-    
-    const narratives = dataset.narratives || [];
-    const labels = narratives.map(n => n.n);
-    const data = narratives.map(n => n.s);
-    const colors = narratives.map(n => {
-      const tone = n.tone ? n.tone.toLowerCase() : 'neutral';
-      if (tone === 'bullish') return '#2FBF71';
-      if (tone === 'bearish') return '#F2453D';
-      if (tone === 'macro') return '#4380FA';
-      if (tone === 'warning') return '#E8C547';
-      return '#F0A63D';
-    });
-    
-    narrativeChartInstance = new Chart(narrCanvas, {
-      type: 'bar',
-      data: {
-        labels: labels.length ? labels : ['No Active Narratives'],
-        datasets: [{
-          data: data.length ? data : [0],
-          backgroundColor: colors.length ? colors : ['#252D38'],
-          barPercentage: 0.6
-        }]
-      },
-      options: {
-        indexAxis: 'y',
-        responsive: true,
-        maintainAspectRatio: false,
-        plugins: {
-          legend: { display: false },
-          tooltip: {
-            callbacks: {
-              label: (ctx) => `Strength: ${ctx.raw}%`
-            }
-          }
-        },
-        scales: {
-          x: {
-            min: 0,
-            max: 100,
-            grid: { color: '#1B222C' },
-            ticks: { color: '#8D96A6', font: { size: 9, family: 'IBM Plex Mono' } }
-          },
-          y: {
-            grid: { display: false },
-            ticks: { color: '#EDF1F7', font: { size: 9, family: 'IBM Plex Sans' } }
-          }
-        }
-      }
-    });
-  }
-}
-window.updateCharts = updateCharts;
-
-/* ============================================================
-   ENHANCEMENTS - COMMENTARY & EXPORTER CENTRE
-   ============================================================ */
-function saveAnalystComment(key) {
-  const box = document.getElementById('detailCommentBox');
-  if (!box) return;
-  const val = box.value.trim();
-  activeCommentOverrides[key] = val;
-  
-  if (activeSessionId) {
-    const sessions = getSavedSessions();
-    const idx = sessions.findIndex(s => s.id === activeSessionId);
-    if (idx !== -1) {
-      sessions[idx].commentOverrides = activeCommentOverrides;
-      saveSessions(sessions);
-    }
-  }
-  alert('Commentary saved successfully!');
-}
-
-function downloadFile(content, fileName, contentType) {
-  const a = document.createElement("a");
-  const file = new Blob([content], {type: contentType});
-  a.href = URL.createObjectURL(file);
-  a.download = fileName;
-  a.click();
-}
-
-function triggerJsonExport() {
-  if (!dataset) return;
-  downloadFile(JSON.stringify(dataset, null, 2), 'ashford_terminal_export.json', 'application/json');
-}
-
-function triggerCsvExport() {
-  if (!dataset) return;
-  let csv = "Indicator,Latest,Previous,Consensus,Trend,Interpretation\n";
-  MACRO_DEFS.forEach(m => {
-    const v = dataset.macro[m.id];
-    if (v) {
-      csv += `"${m.label}","${v.cur || ''}","${v.prev || ''}","${v.cons || ''}","${v.d || ''}","${v.note || ''}"\n`;
-    }
-  });
-  downloadFile(csv, 'ashford_macro_indicators.csv', 'text/csv');
-}
-
-function generateBriefingText() {
-  if (!dataset) return 'No active briefing data available.';
-  const dateStr = new Date(lastUpdatedAt || Date.now()).toLocaleString();
-  const headline = dataset.meta.headline || 'Market Intelligence Briefing';
-  const source = dataset.meta.source || 'Internal Desk';
-  const session = dataset.meta.session || 'Active Session';
-  
-  let brief = `ASHFORD CAPITAL — DAILY INTELLIGENCE BRIEFING\n`;
-  brief += `===========================================\n`;
-  brief += `Generated: ${dateStr}\n`;
-  brief += `Source: ${source} | Session: ${session}\n`;
-  brief += `Headline: ${headline}\n\n`;
-  
-  brief += `SESSION SUMMARY BULLETS:\n`;
-  const bullets = dataset.summary.bullets || [];
-  if (bullets.length) {
-    bullets.forEach(b => { brief += `• ${b}\n`; });
-  } else {
-    brief += `No bullets extracted.\n`;
-  }
-  brief += `\n`;
-  
-  brief += `KEY MACRO INDICATORS:\n`;
-  MACRO_DEFS.forEach(m => {
-    const v = dataset.macro[m.id];
-    if (v && v.cur) {
-      const arrow = v.d === 'up' ? '▲' : v.d === 'down' ? '▼' : '▬';
-      brief += `- ${m.label}: ${v.cur} (Prev: ${v.prev || 'N/A'}, Trend: ${arrow}) — ${v.note || ''}\n`;
-    }
-  });
-  brief += `\n`;
-  
-  brief += `ASSET BIAS & DRIVERS:\n`;
-  ASSET_DEFS.forEach(a => {
-    const v = dataset.bias[a.id];
-    if (v && v.b) {
-      brief += `- ${a.label}: [${v.b}] (Confidence: ${v.cf}%)\n`;
-      brief += `  Driver: ${v.pd || 'N/A'}\n`;
-      brief += `  Risk: ${v.br || 'N/A'}\n`;
-    }
-  });
-  
-  return brief;
-}
-
-function copyBriefingToClipboard() {
-  const briefArea = document.getElementById('briefingTextArea');
-  if (!briefArea) return;
-  briefArea.select();
-  try {
-    document.execCommand('copy');
-    alert('Briefing text copied to your clipboard!');
-  } catch (err) {
-    alert('Failed to copy. Please manually copy the selected text inside the box.');
-  }
-}
-
-// Bind to window for HTML onclick attributes
-window.saveAnalystComment = saveAnalystComment;
-window.triggerJsonExport = triggerJsonExport;
-window.triggerCsvExport = triggerCsvExport;
-window.copyBriefingToClipboard = copyBriefingToClipboard;
-
-/* ============================================================
-   ENHANCEMENTS - CUSTOM SETTINGS MANAGER
-   ============================================================ */
-const DEFAULT_MACRO_DEFS = [
-  {id:'fed',   label:'Fed Funds Rate'},
-  {id:'cpiH',  label:'Headline CPI'},
-  {id:'cpiC',  label:'Core CPI'},
-  {id:'ppiH',  label:'Headline PPI'},
-  {id:'ppiC',  label:'Core PPI'},
-  {id:'real',  label:'Real Rate'},
-  {id:'y2',    label:'2Y Yield'},
-  {id:'y10',   label:'10Y Yield'},
-  {id:'dxy',   label:'DXY'},
-  {id:'wti',   label:'WTI'},
-  {id:'brent', label:'Brent'},
-  {id:'vix',   label:'VIX'},
-];
-const DEFAULT_ASSET_DEFS = [
-  {id:'gold',     label:'Gold'},
-  {id:'nifty',    label:'Nifty'},
-  {id:'usEq',     label:'US Equities'},
-  {id:'usBonds',  label:'US Bonds'},
-  {id:'btc',      label:'Bitcoin'},
-];
-
-function renderSettingsInputs() {
-  const grid = $('#settingsGrid');
-  if (!grid) return;
-  
-  let html = `<div style="font-weight: 600; color: var(--macro); margin-bottom: 6px;">Macro Indicators Configuration:</div>`;
-  MACRO_DEFS.forEach(m => {
-    html += `
-      <div class="settings-row">
-        <span class="mono" style="width: 80px; color: var(--text-faint);">${esc(m.id)}:</span>
-        <input class="settings-input" type="text" data-type="macro" data-id="${esc(m.id)}" value="${esc(m.label)}" placeholder="Indicator Label" />
-      </div>
-    `;
-  });
-  
-  html += `<div style="font-weight: 600; color: var(--macro); margin-top: 15px; margin-bottom: 6px;">Assets Configuration:</div>`;
-  ASSET_DEFS.forEach(a => {
-    html += `
-      <div class="settings-row">
-        <span class="mono" style="width: 80px; color: var(--text-faint);">${esc(a.id)}:</span>
-        <input class="settings-input" type="text" data-type="asset" data-id="${esc(a.id)}" value="${esc(a.label)}" placeholder="Asset Label" />
-      </div>
-    `;
-  });
-
-  html += `<div style="font-weight: 600; color: var(--macro); margin-top: 15px; margin-bottom: 6px;">Secure API Credentials Configuration:</div>`;
-  html += `
-    <div class="settings-row">
-      <span class="mono" style="width: 120px; color: var(--text-faint);">Gemini API Key:</span>
-      <input class="settings-input" type="password" id="settingsGeminiKey" value="${esc(getGeminiKey())}" placeholder="Enter Gemini Key" />
-    </div>
-    <div class="settings-row">
-      <span class="mono" style="width: 120px; color: var(--text-faint);">NewsAPI Key:</span>
-      <input class="settings-input" type="password" id="settingsNewsKey" value="${esc(getNewsApiKey())}" placeholder="Enter NewsAPI Key" />
-    </div>
-  `;
-  
-  grid.innerHTML = html;
-}
-
-function applySettings() {
-  const inputs = document.querySelectorAll('.settings-input[data-type]');
-  const nextMacros = [];
-  const nextAssets = [];
-  
-  inputs.forEach(input => {
-    const type = input.getAttribute('data-type');
-    const id = input.getAttribute('data-id');
-    const label = input.value.trim() || id;
-    if (type === 'macro') {
-      nextMacros.push({ id, label });
-    } else if (type === 'asset') {
-      nextAssets.push({ id, label });
-    }
-  });
-  
-  if (nextMacros.length) MACRO_DEFS = nextMacros;
-  if (nextAssets.length) ASSET_DEFS = nextAssets;
-  
-  localStorage.setItem('ashford_custom_macros', JSON.stringify(MACRO_DEFS));
-  localStorage.setItem('ashford_custom_assets', JSON.stringify(ASSET_DEFS));
-
-  // Save Secure API Keys
-  const geminiInput = document.getElementById('settingsGeminiKey');
-  const newsInput = document.getElementById('settingsNewsKey');
-  if (geminiInput) localStorage.setItem('ashford_api_key_gemini', geminiInput.value.trim());
-  if (newsInput) localStorage.setItem('ashford_api_key_news', newsInput.value.trim());
-  
-  // Re-run dynamic mappings in case defs changed
-  if (dataset) {
-    dataset = normalizeDataset(dataset); // update dataset matching the new schemas
-  }
-  
-  renderAll();
-  updateCharts();
-  
-  $('#settingsPanel').classList.add('hidden');
-  alert('Settings successfully applied!');
-}
-
-function resetSettings() {
-  if (!confirm('Are you sure you want to reset all indicator and asset configurations to default?')) return;
-  
-  MACRO_DEFS = [...DEFAULT_MACRO_DEFS];
-  ASSET_DEFS = [...DEFAULT_ASSET_DEFS];
-  
-  localStorage.removeItem('ashford_custom_macros');
-  localStorage.removeItem('ashford_custom_assets');
-  localStorage.removeItem('ashford_api_key_gemini');
-  localStorage.removeItem('ashford_api_key_news');
-  
-  if (dataset) {
-    dataset = normalizeDataset(dataset);
-  }
-  
-  renderSettingsInputs();
-  renderAll();
-  updateCharts();
-  
-  $('#settingsPanel').classList.add('hidden');
-  alert('Configurations reset to industrial defaults!');
-}
-
-function toggleSettingsPanel() {
-  const panel = $('#settingsPanel');
-  if (panel) {
-    const isHidden = panel.classList.contains('hidden');
-    if (isHidden) {
-      renderSettingsInputs();
-      panel.classList.remove('hidden');
-    } else {
-      panel.classList.add('hidden');
-    }
-  }
-}
-
-/* ============================================================
-   ENHANCEMENTS - GEMINI SUMMARIZER
-   ============================================================ */
-window.activeStrategicConclusions = [
-  "Strategic Note: Local rules-based parser initialized. Connect with Gemini to render deep summaries.",
-  "Asset Driver: Core correlation matrix ready to map indices, yields, and metals."
-];
-
-function getGeminiKey() {
-  return localStorage.getItem('ashford_api_key_gemini') || "AQ.Ab8RN6KKXWXtzxPQHS83oT9t88qMcublIToa2_oJZSlmJymdVQ";
-}
-function getNewsApiKey() {
-  return localStorage.getItem('ashford_api_key_news') || "2984934cdf28477fb4eccee3bdf6d197";
-}
-
-async function fetchGeminiSummary(text) {
-  if (!text) return;
-  const key = getGeminiKey();
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${key}`;
-  
-  const prompt = `
-You are a senior macro research analyst at Ashford Capital. Your task is to analyze the following financial market intelligence report and extract an in-depth, structured summary and strategic fact-based conclusions.
-
-Review all asset classes (Gold, Nifty, US Equities, US Bonds, Bitcoin) and key macro drivers (inflation, Fed rate path, yields, commodities).
-
-Format your output STRICTLY as a raw, single-line JSON object with no markdown code blocks, containing:
-1. "bullets": An array of 6-8 highly detailed, professional-grade bullet points summarizing key events, asset relationships, and macro developments.
-2. "conclusions": An array of 3-4 strategic, fact-based macro conclusions/trading ideas suitable for a portfolio manager.
-3. "riskScore": An integer between -100 (extreme risk-off) and +100 (extreme risk-on) matching this report's sentiment.
-
-Report Text:
-"""
-${text}
-"""
-`;
-
-  try {
-    const res = await fetch(url, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        contents: [{
-          parts: [{ text: prompt }]
-        }]
-      })
-    });
-    
-    if (!res.ok) throw new Error(`HTTP Error ${res.status}`);
-    
-    const data = await res.json();
-    let replyText = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
-    
-    replyText = replyText.replace(/^```json\s*/i, '').replace(/```\s*$/, '').trim();
-    
-    const parsed = JSON.parse(replyText);
-    
-    if (parsed.bullets && parsed.bullets.length > 0) {
-      dataset.summary.bullets = parsed.bullets;
-    }
-    if (parsed.conclusions && parsed.conclusions.length > 0) {
-      window.activeStrategicConclusions = parsed.conclusions;
-    }
-    
-    renderSummary();
-    renderAll();
-    persistDataset(dataset, false);
-    
-  } catch (err) {
-    console.warn("Gemini API failed or was blocked (using local fallback summary):", err);
-    window.activeStrategicConclusions = [
-      "Strategic Note: Rules-based local parser active. Monitor front-end yields for policy shift clues.",
-      "Asset Driver: Correlation matrix indicates yields remain the primary pricing driver for gold and growth assets."
-    ];
-    renderSummary();
-  }
-}
-window.fetchGeminiSummary = fetchGeminiSummary;
-
-/* ============================================================
-   ENHANCEMENTS - GLOBAL KEYWORD SEARCH & NEWSAPI
-   ============================================================ */
-async function fetchNewsFromApi(keyword) {
-  if (!keyword) return;
-  
-  isParsing = true;
-  renderStatusPills();
-  const searchBtn = $('#globalSearchBtn');
-  if (searchBtn) searchBtn.textContent = '⏳';
-  
-  try {
-    const apiKey = getNewsApiKey();
-    const url = `https://newsapi.org/v2/everything?q=${encodeURIComponent(keyword)}&apiKey=${apiKey}`;
-    const res = await fetch(url);
-    if (!res.ok) {
-      throw new Error(`NewsAPI error: ${res.status}`);
-    }
-    const data = await res.json();
-    const articles = data.articles || [];
-    
-    if (articles.length === 0) {
-      showError(`No live news articles found for keyword: "${keyword}"`);
-      return;
-    }
-    
-    const keywordLower = keyword.toLowerCase();
-    const results = [];
-    let aggregatedText = '';
-    
-    articles.forEach(art => {
-      const title = art.title || '';
-      const desc = art.description || '';
-      let content = art.content || '';
-      content = content.replace(/\s*\[\+\d+\s+chars\]\s*$/i, '');
-      
-      const fullText = `${title}. ${desc}. ${content}`;
-      aggregatedText += fullText + ' ';
-      
-      const sentences = fullText.split(/(?<=[.!?])\s+/);
-      const matchedSentences = sentences.filter(s => s.toLowerCase().includes(keywordLower));
-      
-      if (matchedSentences.length > 0) {
-        results.push({
-          source: art.source ? art.source.name : 'News',
-          date: art.publishedAt ? new Date(art.publishedAt).toLocaleDateString() : 'Recent',
-          sentences: matchedSentences.map(s => s.trim()).filter(Boolean)
-        });
-      }
-    });
-    
-    openSearchPopup(keyword, results);
-    
-    if (aggregatedText.trim()) {
-      const rawExtracted = extractIntelligenceLocal(aggregatedText);
-      const fresh = normalizeDataset(rawExtracted);
-      const { data: mergedData, foundCount } = mergeWithPrevious(fresh, dataset);
-      
-      dataset = mergedData;
-      isDemo = false;
-      lastUpdatedAt = new Date();
-      lastFoundCount = foundCount;
-      
-      renderAll();
-      if (typeof updateCharts === 'function') updateCharts();
-      persistDataset(dataset, false);
-    }
-    
-  } catch (err) {
-    console.error(err);
-    showError(`Failed to fetch or visualize live news: ${err.message}`);
-  } finally {
-    isParsing = false;
-    renderStatusPills();
-    if (searchBtn) searchBtn.textContent = '🔍';
-  }
-}
-
-function openSearchPopup(keyword, results) {
-  let html = `
-    <div style="font-size: 11.5px; color: var(--text-faint); margin-bottom: 12px;">
-      Found ${results.length} relevant articles containing matches for "${esc(keyword)}":
-    </div>
-    <div class="search-results-list">
-  `;
-  
-  if (results.length === 0) {
-    html += `<div class="empty-state">No matching complete sentences found containing "${esc(keyword)}".</div>`;
-  } else {
-    results.forEach(res => {
-      const joinedSentences = res.sentences.join(' ');
-      html += `
-        <div class="search-result-block">
-          <div class="search-result-title">
-            <span>${esc(res.source)}</span>
-            <span class="search-result-date">${esc(res.date)}</span>
-          </div>
-          <div class="search-result-text">${esc(joinedSentences)}</div>
-        </div>
-      `;
-    });
-  }
-  
-  html += `</div>`;
-  
-  $('#detailEyebrow').textContent = 'Global Keyword Search';
-  $('#detailTitle').textContent = `Results for "${keyword}"`;
-  $('#detailBody').innerHTML = html;
-  $('#detailOverlay').classList.remove('hidden');
-}
-
-window.fetchNewsFromApi = fetchNewsFromApi;
-window.openSearchPopup = openSearchPopup;
-
-/* ============================================================
-   ENHANCEMENTS - CHATBOT ASSISTANT
-   ============================================================ */
-function appendChatMessage(text, isUser) {
-  const container = $('#chatbotMessages');
-  if (!container) return;
-  
-  const msgEl = document.createElement('div');
-  msgEl.className = `chatbot-msg ${isUser ? 'chatbot-msg--user' : 'chatbot-msg--bot'}`;
-  msgEl.textContent = text;
-  container.appendChild(msgEl);
-  container.scrollTop = container.scrollHeight;
-}
-
-function showChatbotLoading() {
-  const container = $('#chatbotMessages');
-  if (!container) return;
-  
-  const loadingEl = document.createElement('div');
-  loadingEl.className = 'chatbot-msg chatbot-msg--bot';
-  loadingEl.id = 'chatbotLoadingIndicator';
-  loadingEl.innerHTML = `
-    <span class="chatbot-loading"></span>
-    <span class="chatbot-loading"></span>
-    <span class="chatbot-loading"></span>
-  `;
-  container.appendChild(loadingEl);
-  container.scrollTop = container.scrollHeight;
-}
-
-function removeChatbotLoading() {
-  const indicator = document.getElementById('chatbotLoadingIndicator');
-  if (indicator) {
-    indicator.remove();
-  }
-}
-
-async function sendChatbotMessage() {
-  const input = $('#chatbotInput');
-  if (!input) return;
-  const text = input.value.trim();
-  if (!text) return;
-  
-  appendChatMessage(text, true);
-  input.value = '';
-  
-  showChatbotLoading();
-  
-  let dashboardContext = "No active dataset loaded.";
-  if (dataset) {
-    dashboardContext = `
-Active Headline: ${dataset.meta.headline || 'N/A'}
-Macro Rates: ${Object.entries(dataset.macro).map(([k, v]) => `${k}:${v.cur || 'N/A'}`).join(', ')}
-Asset Bias: ${Object.entries(dataset.bias).map(([k, v]) => `${k}:${v.b || 'N/A'} (${v.cf || 0}% conf)`).join(', ')}
-    `;
-  }
-  
-  const systemPrompt = `
-You are the Ashford Capital Terminal Intelligent Assistant. Answer the user's questions or clear their doubts about the current market visualizations, indicators, and uploaded financial context displayed on their screen.
-
-Active Dashboard State:
-${dashboardContext}
-
-Provide short, extremely sharp, fact-based financial-desk answers to the user's queries. Be concise, direct, and act as a senior strategist.
-`;
-
-  const key = getGeminiKey();
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${key}`;
-  
-  try {
-    const res = await fetch(url, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        contents: [
-          { role: "user", parts: [{ text: systemPrompt + `\n\nUser Question: ${text}` }] }
-        ]
-      })
-    });
-    
-    removeChatbotLoading();
-    
-    if (!res.ok) throw new Error(`HTTP Error ${res.status}`);
-    
-    const data = await res.json();
-    const reply = data.candidates?.[0]?.content?.parts?.[0]?.text || "I was unable to formulate a response.";
-    appendChatMessage(reply.trim(), false);
-    
-  } catch(err) {
-    console.warn("Chatbot Gemini API failed or was blocked (using local smart response):", err);
-    removeChatbotLoading();
-    
-    const query = text.toLowerCase();
-    let reply = "";
-    
-    if (query.includes('gold')) {
-      const g = dataset ? dataset.bias.gold : null;
-      reply = g && g.b ? `Gold is currently showing a [${g.b}] bias with ${g.cf || 50}% confidence. The primary driver is: ${g.pd || 'N/A'}.` : "I don't have enough data on Gold yet. Paste some briefings or load the sample dataset!";
-    } else if (query.includes('cpi') || query.includes('inflation')) {
-      const c = dataset ? dataset.macro.cpiH : null;
-      reply = c && c.cur ? `Headline CPI is currently at ${c.cur} (prior: ${c.prev || 'N/A'}, trend: ${c.d || 'N/A'}). Desk note: ${c.note || 'N/A'}.` : "I don't see any active CPI readings on our dashboard yet.";
-    } else if (query.includes('fed') || query.includes('rate')) {
-      const f = dataset ? dataset.macro.fed : null;
-      reply = f && f.cur ? `The Federal Funds Rate is currently at ${f.cur}. The trend remains ${f.d || 'flat'} (${f.note || 'Held at cycle high'}).` : "I don't see the Federal Funds Rate on the dashboard yet.";
-    } else {
-      reply = "I am currently running in local offline mode. According to our active visualizations, we are monitoring " + 
-              (dataset ? `"${dataset.meta.headline || 'Active Session'}"` : "an empty terminal") + 
-              ". Let me know if you would like to inspect specific assets, indicators, or narrative trends!";
-    }
-    
-    appendChatMessage(reply, false);
-  }
-}
-window.sendChatbotMessage = sendChatbotMessage;
-
-/* ============================================================
-   ENHANCEMENTS - FILE UPLOAD PROCESSOR
-   ============================================================ */
-async function processUploadedFile(file) {
-  if (!file) return;
-  
-  const name = file.name;
-  const ext = name.split('.').pop().toLowerCase();
-  
-  isParsing = true;
-  renderStatusPills();
-  
-  try {
-    const reader = new FileReader();
-    
-    if (ext === 'pdf') {
-      reader.onload = async function(e) {
-        try {
-          const arrayBuffer = e.target.result;
-          const pdfjsLib = window.pdfjsLib || window['pdfjs-dist/build/pdf'];
-          pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js';
-          
-          const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
-          let fullText = '';
-          for (let i = 1; i <= pdf.numPages; i++) {
-            const page = await pdf.getPage(i);
-            const textContent = await page.getTextContent();
-            const pageText = textContent.items.map(item => item.str).join(' ');
-            fullText += pageText + '\n';
-          }
-          
-          if (!fullText.trim()) {
-            throw new Error("No readable text found inside PDF pages.");
-          }
-          
-          clearError();
-          handleNewIntelligence(fullText);
-          
-        } catch(err) {
-          showError(`PDF Parsing failed: ${err.message}`);
-          isParsing = false;
-          renderStatusPills();
-        }
-      };
-      reader.readAsArrayBuffer(file);
-      
-    } else if (ext === 'docx') {
-      reader.onload = function(e) {
-        try {
-          const arrayBuffer = e.target.result;
-          mammoth.extractRawText({ arrayBuffer: arrayBuffer })
-            .then(function(result) {
-              const text = result.value;
-              clearError();
-              handleNewIntelligence(text);
-            })
-            .catch(function(mErr) {
-              showError(`Word Document Parsing failed: ${mErr.message}`);
-              isParsing = false;
-              renderStatusPills();
-            });
-        } catch(err) {
-          showError(`Word Document Parsing failed: ${err.message}`);
-          isParsing = false;
-          renderStatusPills();
-        }
-      };
-      reader.readAsArrayBuffer(file);
-      
-    } else {
-      reader.onload = function(e) {
-        const text = e.target.result;
-        clearError();
-        handleNewIntelligence(text);
-      };
-      reader.readAsText(file);
-    }
-    
-  } catch(err) {
-    showError(`File upload reading error: ${err.message}`);
-    isParsing = false;
-    renderStatusPills();
-  }
-}
-window.processUploadedFile = processUploadedFile;
 
 /* ============================================================
    EVENT WIRING
@@ -3096,128 +2585,45 @@ function wireEvents(){
   });
 
   $('#sampleBtn').addEventListener('click', ()=>{
-    dataset = SAMPLE_DATASET; isDemo = true; lastUpdatedAt = new Date(); lastFoundCount = null;
+    dataset = SAMPLE_DATASET; isDemo = true; lastUpdatedAt = new Date(); lastFoundCount = null; lastEngine = null;
     clearError(); renderAll(); persistDataset(dataset, true);
-    if (typeof updateCharts === 'function') updateCharts();
   });
-
-  $('#saveSessionBtn').addEventListener('click', () => {
-    saveCurrentSession();
-  });
-
-  // Global Search Event Listeners
-  const globalSearchInput = $('#globalSearchInput');
-  const globalSearchBtn = $('#globalSearchBtn');
-  
-  function executeHeaderSearch() {
-    const q = globalSearchInput.value.trim();
-    if (q) {
-      fetchNewsFromApi(q);
-      globalSearchInput.value = '';
-    } else {
-      showError('Please enter a search keyword first.');
-    }
-  }
-
-  if (globalSearchBtn) {
-    globalSearchBtn.addEventListener('click', () => {
-      executeHeaderSearch();
-    });
-  }
-  if (globalSearchInput) {
-    globalSearchInput.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter') {
-        executeHeaderSearch();
-      }
-    });
-  }
-
-  // File Upload Event Listener
-  const fileUploadInput = $('#fileUploadInput');
-  if (fileUploadInput) {
-    fileUploadInput.addEventListener('change', (e) => {
-      const file = e.target.files[0];
-      if (file) {
-        processUploadedFile(file);
-        fileUploadInput.value = ''; // clear
-      }
-    });
-  }
-
-  // Chatbot Assistant Event Listeners
-  const chatbotToggleBtn = $('#chatbotToggleBtn');
-  const chatbotCloseBtn = $('#chatbotCloseBtn');
-  const chatbotWindow = $('#chatbotWindow');
-  const chatbotSendBtn = $('#chatbotSendBtn');
-  const chatbotInput = $('#chatbotInput');
-
-  if (chatbotToggleBtn) {
-    chatbotToggleBtn.addEventListener('click', () => {
-      if (chatbotWindow) {
-        chatbotWindow.classList.toggle('hidden');
-      }
-    });
-  }
-  if (chatbotCloseBtn) {
-    chatbotCloseBtn.addEventListener('click', () => {
-      if (chatbotWindow) {
-        chatbotWindow.classList.add('hidden');
-      }
-    });
-  }
-  if (chatbotSendBtn) {
-    chatbotSendBtn.addEventListener('click', () => {
-      sendChatbotMessage();
-    });
-  }
-  if (chatbotInput) {
-    chatbotInput.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter') {
-        sendChatbotMessage();
-      }
-    });
-  }
-
-  const exportBriefBtn = $('#exportBriefBtn');
-  if (exportBriefBtn) {
-    exportBriefBtn.addEventListener('click', () => {
-      if (!dataset) {
-        showError('No active dataset to export. Please load sample or paste briefing.');
-        return;
-      }
-      openDetail('export', 'briefing');
-    });
-  }
-
-  const toggleSettingsBtn = $('#toggleSettingsBtn');
-  if (toggleSettingsBtn) {
-    toggleSettingsBtn.addEventListener('click', () => {
-      toggleSettingsPanel();
-    });
-  }
-
-  const saveSettingsBtn = $('#saveSettingsBtn');
-  if (saveSettingsBtn) {
-    saveSettingsBtn.addEventListener('click', () => {
-      applySettings();
-    });
-  }
-
-  const resetSettingsBtn = $('#resetSettingsBtn');
-  if (resetSettingsBtn) {
-    resetSettingsBtn.addEventListener('click', () => {
-      resetSettings();
-    });
-  }
-
-  const feedSimulator = $('#feedSimulator');
-  if (feedSimulator) {
-    feedSimulator.addEventListener('change', (e) => {
-      triggerSimulation(e.target.value);
-    });
-  }
 
   $('#errorDismiss').addEventListener('click', clearError);
+
+  // --- file upload ---
+  $('#uploadBtn').addEventListener('click', ()=> $('#fileUploadInput').click());
+  $('#fileUploadInput').addEventListener('change', e=>{
+    const file = e.target.files && e.target.files[0];
+    e.target.value = ''; // allow re-uploading a file with the same name later
+    if(file) handleFileUpload(file);
+  });
+
+  // --- global search ---
+  $('#globalSearchBtn').addEventListener('click', openSearch);
+  $('#searchClose').addEventListener('click', closeSearch);
+  $('#searchOverlay').addEventListener('click', e=>{ if(e.target.id==='searchOverlay') closeSearch(); });
+  $('#searchForm').addEventListener('submit', e=>{
+    e.preventDefault();
+    runGlobalSearch($('#globalSearchInput').value);
+  });
+
+  // --- terminal assistant (chat) ---
+  $('#chatFab').addEventListener('click', openChat);
+  $('#chatClose').addEventListener('click', closeChat);
+  $('#chatForm').addEventListener('submit', e=>{
+    e.preventDefault();
+    const input = $('#chatInput');
+    const text = input.value;
+    input.value = ''; input.style.height = '';
+    sendChatMessage(text);
+  });
+  $('#chatInput').addEventListener('keydown', e=>{
+    if(e.key==='Enter' && !e.shiftKey){ e.preventDefault(); $('#chatForm').requestSubmit(); }
+  });
+  $('#chatInput').addEventListener('input', ()=>{
+    const el = $('#chatInput'); el.style.height = 'auto'; el.style.height = Math.min(el.scrollHeight, 90) + 'px';
+  });
 
   $('#watchlistSearch').addEventListener('input', debounce(e=>{ watchlistState.query = e.target.value; renderWatchlist(); }, 150));
   $('#watchlistImpFilter').addEventListener('change', e=>{ watchlistState.imp = e.target.value; renderWatchlist(); });
@@ -3242,7 +2648,7 @@ function wireEvents(){
       closeDetail();
     }
   });
-  document.addEventListener('keydown', e=>{ if(e.key==='Escape') closeDetail(); });
+  document.addEventListener('keydown', e=>{ if(e.key==='Escape'){ closeDetail(); closeSearch(); closeChat(); } });
 }
 
 /* ============================================================
@@ -3252,7 +2658,6 @@ async function init(){
   tickClock();
   setInterval(tickClock, 1000);
   renderAll();
-  renderSavedSessions();
   wireEvents();
   try{
     const persisted = await loadPersisted();
@@ -3261,7 +2666,6 @@ async function init(){
       isDemo = !!persisted.demo;
       lastUpdatedAt = persisted.savedAt ? new Date(persisted.savedAt) : new Date();
       renderAll();
-      if (typeof updateCharts === 'function') updateCharts();
     }
   }catch(e){ console.warn('no persisted dataset', e); }
 }
