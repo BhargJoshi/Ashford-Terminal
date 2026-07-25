@@ -736,7 +736,7 @@ const CONFIG = {
   NEWS_API_KEY:   '2984934cdf28477fb4eccee3bdf6d197',
   NEWS_API_BASE:  'https://newsapi.org/v2',
   GEMINI_API_KEY: 'AQ.Ab8RN6JtjkAwZ_sv1LKM3_6vsUZ9V3q22XJDBB_SRLW4GqUVqg',
-  GEMINI_MODEL:   'gemini-3.5-flash', // swap to e.g. 'gemini-3.6-flash' or 'gemini-2.5-flash' if this one 404s on your key
+  MODEL=process.env.GEMINI_MODEL
   GEMINI_INTERACTIONS_BASE: 'https://generativelanguage.googleapis.com/v1beta/interactions',
   GEMINI_BASE:    'https://generativelanguage.googleapis.com/v1beta/models',
 };
