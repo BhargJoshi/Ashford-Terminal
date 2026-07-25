@@ -719,12 +719,25 @@ const POS_DEFS = [
    localhost and delays articles ~24h — errors from that plan are
    surfaced as a specific message in fetchLiveNews() rather than a
    generic failure.
+
+   On the Gemini side: Google is retiring "standard" (AIzaSy…) API
+   keys in favor of "auth" (AQ.…) keys — AI Studio now issues AQ.
+   keys by default, and standard keys stop working entirely in
+   September 2026, so an AQ. key here is expected, not a mistake.
+   As of mid-2026 there's a widely-reported, Google-acknowledged
+   gap where AQ. keys 401 against the classic generateContent
+   endpoint (GEMINI_BASE below); callGemini() below tries the
+   newer Interactions API (GEMINI_INTERACTIONS_BASE) first, since
+   it's the actively-developed endpoint auth keys are meant for,
+   and falls back to generateContent automatically. See the
+   comments on callGemini() for what's confirmed vs. best-effort.
    ============================================================ */
 const CONFIG = {
   NEWS_API_KEY:   '2984934cdf28477fb4eccee3bdf6d197',
   NEWS_API_BASE:  'https://newsapi.org/v2',
   GEMINI_API_KEY: 'AQ.Ab8RN6KKXWXtzxPQHS83oT9t88qMcublIToa2_oJZSlmJymdVQ',
   GEMINI_MODEL:   'gemini-3.5-flash', // swap to e.g. 'gemini-3.6-flash' or 'gemini-2.5-flash' if this one 404s on your key
+  GEMINI_INTERACTIONS_BASE: 'https://generativelanguage.googleapis.com/v1beta/interactions',
   GEMINI_BASE:    'https://generativelanguage.googleapis.com/v1beta/models',
 };
 
@@ -1592,8 +1605,78 @@ RULES \u2014 follow every one of these:
 10. If the source text is very short, unrelated to markets, or has almost nothing usable, it is correct to return a mostly-empty structure \u2014 do not pad it with invented content.`;
 }
 
-async function callGemini(promptText, opts){
-  opts = opts || {};
+function isLikelyValidGeminiKeyFormat(key){
+  // Standard ("AIzaSy…") keys and auth ("AQ.…") keys are BOTH legitimate Gemini
+  // key formats — Google is actively retiring standard keys in favor of auth
+  // keys (all standard keys stop working in September 2026), so an AQ. key is
+  // expected going forward, not a mistake. This just distinguishes the two so
+  // error messages can be specific about which known issue applies.
+  return typeof key === 'string' && /^AIzaSy/.test(key);
+}
+function flattenContentsToText(contents){
+  // The Interactions API takes a single "input" string/turn rather than the
+  // {role,parts} history generateContent uses. For a single-turn call (the
+  // structured-extraction prompt) this is a no-op — the prompt goes through
+  // unchanged. For multi-turn chat history, turns are flattened into a
+  // labeled text block; Gemini reads this as conversational context fine.
+  if(contents.length === 1) return (contents[0].parts||[]).map(p=>p.text||'').join('');
+  return contents.map(c=>{
+    const text = (c.parts||[]).map(p=>p.text||'').join('');
+    return `${c.role==='model' ? 'ASSISTANT' : 'USER'}: ${text}`;
+  }).join('\n\n');
+}
+
+/* ---- Primary path: Interactions API (generally available, actively
+   developed, and the endpoint auth/AQ. keys are meant for). Request/response
+   shape confirmed against Google's own docs and quickstart as of July 2026.
+   NOT independently confirmed to resolve the AQ.-key 401 issue specifically —
+   that part is a reasoned attempt, not a verified fix. ---- */
+async function callGeminiInteractions(contents, opts){
+  const controller = new AbortController();
+  const timeout = setTimeout(()=>controller.abort(), opts.timeoutMs || 45000);
+  try{
+    const body = { model: CONFIG.GEMINI_MODEL, input: flattenContentsToText(contents) };
+    if(opts.json) body.response_format = [{ type:'text', mime_type:'application/json' }];
+    let resp;
+    try{
+      resp = await fetch(CONFIG.GEMINI_INTERACTIONS_BASE, {
+        method: 'POST',
+        headers: { 'Content-Type':'application/json', 'x-goog-api-key': CONFIG.GEMINI_API_KEY },
+        signal: controller.signal,
+        body: JSON.stringify(body)
+      });
+    }catch(networkErr){
+      if(networkErr.name==='AbortError') throw new Error('Gemini Interactions API request timed out.');
+      throw new Error('Could not reach the Gemini Interactions API from the browser.');
+    }
+    if(!resp.ok){
+      let detail = '';
+      try{ const errJson = await resp.json(); detail = (errJson && errJson.error && errJson.error.message) || ''; }catch(e){}
+      throw new Error(`Gemini Interactions API error ${resp.status}${detail ? ': '+detail : ''}`);
+    }
+    const data = await resp.json();
+    const steps = Array.isArray(data.steps) ? data.steps : [];
+    let text = '';
+    for(let i=steps.length-1; i>=0; i--){
+      if(steps[i] && steps[i].type==='model_output' && Array.isArray(steps[i].content)){
+        const t = steps[i].content.filter(c=>c && c.type==='text').map(c=>c.text||'').join('');
+        if(t){ text = t; break; }
+      }
+    }
+    if(!text) throw new Error('Gemini Interactions API returned no text output.');
+    return text;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+/* ---- Fallback path: the classic generateContent endpoint. Verified
+   directly against Google's current official docs (July 2026) for both the
+   endpoint and the x-goog-api-key header — this code is correct. The 401
+   ACCESS_TOKEN_TYPE_UNSUPPORTED error some AQ. keys hit here is a Google-
+   acknowledged, currently-open compatibility gap on this specific (now
+   "Legacy"-labeled) endpoint, not a request-construction bug. ---- */
+async function callGeminiGenerateContent(promptText, opts){
   const controller = new AbortController();
   const timeout = setTimeout(()=>controller.abort(), opts.timeoutMs || 45000);
   try{
@@ -1621,6 +1704,13 @@ async function callGemini(promptText, opts){
     if(!resp.ok){
       let detail = '';
       try{ const errJson = await resp.json(); detail = (errJson && errJson.error && errJson.error.message) || ''; }catch(e){}
+      const isAuthTypeError = resp.status === 401 && /OAuth 2 access token/i.test(detail);
+      if(isAuthTypeError){
+        if(!isLikelyValidGeminiKeyFormat(CONFIG.GEMINI_API_KEY)){
+          throw new Error('Gemini rejected this key on the classic generateContent endpoint (401 ACCESS_TOKEN_TYPE_UNSUPPORTED). This looks like one of Google\u2019s new "AQ." auth keys, which is the correct/expected key type now \u2014 AI Studio issues these by default and standard "AIzaSy\u2026" keys stop working entirely in September 2026. The 401 here is a currently-open, Google-acknowledged gap on this specific legacy endpoint (see discuss.ai.google.dev, widely reported since June 2026), not a problem with the key itself. This app already tries the newer Interactions API first for that reason; if that also failed too, report it directly to Google\u2019s engineering team at https://docs.google.com/forms/d/e/1FAIpQLSeE_etCum8howWWbOUP-nZubqejkr6RJ2OyHo3NAs6CmojdTQ/viewform (their own staff pointed people with this exact error to that form), or watch aistudio.google.com/apikey for a fix.');
+        }
+        throw new Error('Gemini rejected this key (401 ACCESS_TOKEN_TYPE_UNSUPPORTED) even though it\u2019s in the older "AIzaSy…" format \u2014 it may be disabled, deleted, or restricted. Check aistudio.google.com/apikey and regenerate it if needed.');
+      }
       throw new Error(`Gemini API error ${resp.status}${detail ? ': '+detail : ''}`);
     }
     const data = await resp.json();
@@ -1633,6 +1723,26 @@ async function callGemini(promptText, opts){
     return text;
   } finally {
     clearTimeout(timeout);
+  }
+}
+
+/* ---- Orchestrator: try the Interactions API first, fall back to
+   generateContent on any failure. Callers (summarizeWithGemini,
+   sendChatMessage) are unchanged — they still call callGemini(promptText, opts)
+   exactly as before. ---- */
+async function callGemini(promptText, opts){
+  opts = opts || {};
+  const contents = opts.contents || [{ role:'user', parts:[{ text: promptText }] }];
+  try{
+    return await callGeminiInteractions(contents, opts);
+  }catch(interactionsErr){
+    console.warn('Gemini Interactions API failed, falling back to generateContent', interactionsErr);
+    try{
+      return await callGeminiGenerateContent(promptText, opts);
+    }catch(generateContentErr){
+      generateContentErr.message = `${generateContentErr.message} (The newer Interactions API endpoint was tried first and also failed: ${interactionsErr.message})`;
+      throw generateContentErr;
+    }
   }
 }
 function parseJsonLoose(text){
@@ -1825,7 +1935,13 @@ let isChatting = false;
 const CHAT_GREETING = 'Hi \u2014 I\u2019m the terminal assistant. Ask me what any card, figure, or section means, why a bias or score reads the way it does, or how a number got onto the dashboard. I can only speak to what\u2019s currently loaded here, and I\u2019m not a substitute for your own judgment or a licensed advisor on actual trading decisions.';
 function openChat(){
   $('#chatPanel').classList.remove('hidden');
-  if(chatHistory.length === 0){ chatHistory.push({role:'model', text:CHAT_GREETING}); renderChatMessages(); }
+  if(chatHistory.length === 0){
+    chatHistory.push({role:'model', text:CHAT_GREETING});
+    if(!isLikelyValidGeminiKeyFormat(CONFIG.GEMINI_API_KEY)){
+      chatHistory.push({role:'model', error:true, text:'Heads up: this Gemini key is in the newer "AQ." auth-key format rather than the older "AIzaSy\u2026" one \u2014 that\u2019s the correct/expected format now (Google\u2019s retiring the old one), but there\u2019s a currently-open Google-side gap where some AQ. keys 401 on the classic API. I\u2019ll try the newer Interactions API first, which may not hit the same issue, and fall back automatically \u2014 if you still see an error, the message will say exactly what failed.'});
+    }
+    renderChatMessages();
+  }
   $('#chatInput').focus();
 }
 function closeChat(){ $('#chatPanel').classList.add('hidden'); }
