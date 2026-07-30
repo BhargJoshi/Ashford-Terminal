@@ -1619,7 +1619,12 @@ RULES \u2014 follow every one of these:
    ========================================================================== */
 function buildGroqResponseSchema(){
   const str = { type:'string' };
-  const numOrNull = { type:['integer','null'], minimum:0, maximum:100 };
+  // NOTE: deliberately NOT using minimum/maximum here. OpenAI-style
+  // structured outputs (which Groq's strict mode follows) rejects the
+  // entire schema if numeric bounds are present -- 0-100 is enforced by
+  // the prompt's RULES text instead, same as every other soft constraint
+  // in this schema (dates, word counts, etc. aren't schema-enforceable either).
+  const numOrNull = { type:['integer','null'] };
   const defs = {
     macroEntry: {
       type:'object',
@@ -1732,8 +1737,13 @@ async function callGroq(messages, opts){
       throw new Error('Could not reach Groq from the browser -- check your connection.');
     }
     if(!resp.ok){
-      let detail = '';
-      try{ const errJson = await resp.json(); detail = (errJson && errJson.error && errJson.error.message) || ''; }catch(e){}
+      let detail = '', code = '', failedGen = '';
+      try{
+        const errJson = await resp.json();
+        detail = (errJson && errJson.error && errJson.error.message) || '';
+        code = (errJson && errJson.error && errJson.error.code) || '';
+        failedGen = (errJson && errJson.error && errJson.error.failed_generation) || '';
+      }catch(e){}
       if(resp.status === 401){
         throw new Error(`Groq rejected this API key (401${detail ? ': '+detail : ''}). Groq keys start with "gsk_" -- check CONFIG.GROQ_API_KEY in the code and console.groq.com/keys for a valid one.`);
       }
@@ -1743,7 +1753,11 @@ async function callGroq(messages, opts){
       if(resp.status === 429){
         throw new Error(`Groq rate limit hit (429)${detail ? ': '+detail : ''} -- wait a moment and try again, or check console.groq.com for your current limits.`);
       }
-      throw new Error(`Groq API error ${resp.status}${detail ? ': '+detail : ''}`);
+      if(resp.status === 400 && code === 'json_validate_failed'){
+        if(opts.debugLabel) console.debug(`[Groq:${opts.debugLabel}] json_validate_failed, failed_generation:`, failedGen);
+        throw new Error(`Groq couldn't produce output matching the schema (400 json_validate_failed) -- this is a known intermittent gap in Groq's own strict-mode enforcement for GPT-OSS models, not necessarily a bad request. ${detail}`);
+      }
+      throw new Error(`Groq API error ${resp.status}${detail ? ': '+detail : ''}${code ? ` [${code}]` : ''}`);
     }
     const data = await resp.json();
     const choice = data.choices && data.choices[0];
@@ -1784,14 +1798,32 @@ function parseJsonLoose(text){
 }
 async function summarizeWithGroq(rawText, opts){
   const prompt = buildGroqPrompt(rawText, opts);
-  const text = await callGroq([{ role:'user', content: prompt }], {
-    jsonSchema: { name:'market_intelligence_extraction', schema: buildGroqResponseSchema() },
-    temperature:0.25,
-    maxOutputTokens:16384,
-    reasoningEffort:'medium',
-    debugLabel:'summarize'
-  });
-  return parseJsonLoose(text);
+  const messages = [{ role:'user', content: prompt }];
+  const baseParams = { temperature:0.25, maxOutputTokens:16384, reasoningEffort:'medium' };
+  try{
+    const text = await callGroq(messages, Object.assign({}, baseParams, {
+      jsonSchema: { name:'market_intelligence_extraction', schema: buildGroqResponseSchema() },
+      debugLabel:'summarize:strict-schema'
+    }));
+    return parseJsonLoose(text);
+  }catch(schemaErr){
+    // Groq's strict mode is documented as "guaranteed" but has a known
+    // intermittent failure rate on GPT-OSS models in practice (400
+    // json_validate_failed) -- so this call is never allowed to be the
+    // only attempt. Falling back to plain json_object mode still gets a
+    // valid JSON object, just without the hard structural guarantee.
+    console.warn('Groq strict-schema summarization failed, retrying in json_object mode:', schemaErr.message);
+    try{
+      const text = await callGroq(messages, Object.assign({}, baseParams, {
+        json:true,
+        debugLabel:'summarize:json-object-fallback'
+      }));
+      return parseJsonLoose(text);
+    }catch(fallbackErr){
+      fallbackErr.message = `${fallbackErr.message} (strict-schema attempt also failed first: ${schemaErr.message})`;
+      throw fallbackErr;
+    }
+  }
 }
 
 /* ==========================================================================
