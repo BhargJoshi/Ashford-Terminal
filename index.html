@@ -1800,19 +1800,25 @@ async function summarizeWithGroq(rawText, opts){
   const prompt = buildGroqPrompt(rawText, opts);
   const messages = [{ role:'user', content: prompt }];
   const baseParams = { temperature:0.25, maxOutputTokens:16384, reasoningEffort:'medium' };
+  const schema = buildGroqResponseSchema();
   try{
+    // Primary attempt: best-effort schema mode (strict:false). Same schema
+    // as before, but Groq treats it as guidance instead of a hard
+    // constraint -- still steers each field into the right key for the
+    // dashboard cards, without rejecting the whole response outright when
+    // real-world source text (pasted, notepad .txt, or PDF-extracted) is
+    // messy or ambiguous enough that one field doesn't cleanly fit. This
+    // is deliberately the primary path, not strict:true, because most
+    // source text here comes from .txt/PDF uploads rather than tidy
+    // hand-written paste text -- see buildGroqResponseSchema() for why
+    // strict mode isn't a good fit for that as the primary path.
     const text = await callGroq(messages, Object.assign({}, baseParams, {
-      jsonSchema: { name:'market_intelligence_extraction', schema: buildGroqResponseSchema() },
-      debugLabel:'summarize:strict-schema'
+      jsonSchema: { name:'market_intelligence_extraction', schema, strict:false },
+      debugLabel:'summarize:flexible-schema'
     }));
     return parseJsonLoose(text);
   }catch(schemaErr){
-    // Groq's strict mode is documented as "guaranteed" but has a known
-    // intermittent failure rate on GPT-OSS models in practice (400
-    // json_validate_failed) -- so this call is never allowed to be the
-    // only attempt. Falling back to plain json_object mode still gets a
-    // valid JSON object, just without the hard structural guarantee.
-    console.warn('Groq strict-schema summarization failed, retrying in json_object mode:', schemaErr.message);
+    console.warn('Groq flexible-schema summarization failed, retrying in plain json_object mode:', schemaErr.message);
     try{
       const text = await callGroq(messages, Object.assign({}, baseParams, {
         json:true,
@@ -1820,7 +1826,7 @@ async function summarizeWithGroq(rawText, opts){
       }));
       return parseJsonLoose(text);
     }catch(fallbackErr){
-      fallbackErr.message = `${fallbackErr.message} (strict-schema attempt also failed first: ${schemaErr.message})`;
+      fallbackErr.message = `${fallbackErr.message} (flexible-schema attempt also failed first: ${schemaErr.message})`;
       throw fallbackErr;
     }
   }
