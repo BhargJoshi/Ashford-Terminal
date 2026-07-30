@@ -1607,6 +1607,82 @@ RULES \u2014 follow every one of these:
 10. If the source text is very short, unrelated to markets, or has almost nothing usable, it is correct to return a mostly-empty structure \u2014 do not pad it with invented content.`;
 }
 
+/* ==========================================================================
+   STRICT RESPONSE SCHEMA \u2014 built from the same MACRO_DEFS / ASSET_DEFS /
+   POS_DEFS as buildGroqPrompt(), so the two can never drift apart. Passed as
+   response_format:{type:'json_schema', json_schema:{strict:true, ...}} in
+   summarizeWithGroq(). Under strict:true, Groq uses constrained decoding \u2014
+   the model is literally incapable of emitting a key, type, or enum value
+   outside this shape, which is what json_object (best-effort) mode does not
+   guarantee. This does NOT guarantee the *content* is insightful, only that
+   it lands in the right place -- see buildGroqPrompt()'s RULES for that half.
+   ========================================================================== */
+function buildGroqResponseSchema(){
+  const str = { type:'string' };
+  const numOrNull = { type:['integer','null'], minimum:0, maximum:100 };
+  const defs = {
+    macroEntry: {
+      type:'object',
+      properties:{ cur:str, prev:str, cons:str, d:{type:'string', enum:['up','down','flat','na']}, note:str, src:str },
+      required:['cur','prev','cons','d','note','src'], additionalProperties:false
+    },
+    biasEntry: {
+      type:'object',
+      properties:{ b:{type:'string', enum:['Bullish','Bearish','Neutral','']}, cf:numOrNull, pd:str, br:str, nc:str, src:str },
+      required:['b','cf','pd','br','nc','src'], additionalProperties:false
+    },
+    matrixEntry: {
+      type:'object',
+      properties:{ bd:str, brd:str, cd:str, b:{type:'string', enum:['Bullish','Bearish','Neutral','']}, cf:numOrNull, src:str },
+      required:['bd','brd','cd','b','cf','src'], additionalProperties:false
+    },
+    posEntry: {
+      type:'object',
+      properties:{ v:str, tone:{type:'string', enum:['bullish','bearish','neutral','macro','warning','none']}, src:str },
+      required:['v','tone','src'], additionalProperties:false
+    }
+  };
+  const macroProps = {};  MACRO_DEFS.forEach(m=>{ macroProps[m.id]  = { '$ref':'#/$defs/macroEntry' }; });
+  const biasProps = {};   ASSET_DEFS.forEach(a=>{ biasProps[a.id]   = { '$ref':'#/$defs/biasEntry' };  });
+  const matrixProps = {}; ASSET_DEFS.forEach(a=>{ matrixProps[a.id] = { '$ref':'#/$defs/matrixEntry' };});
+  const posProps = {};    POS_DEFS.forEach(p=>{   posProps[p.id]    = { '$ref':'#/$defs/posEntry' };   });
+
+  return {
+    type:'object',
+    properties:{
+      meta:{ type:'object', properties:{ source:str, session:str, headline:str }, required:['source','session','headline'], additionalProperties:false },
+      macro:{ type:'object', properties:macroProps, required:MACRO_DEFS.map(m=>m.id), additionalProperties:false },
+      bias:{ type:'object', properties:biasProps, required:ASSET_DEFS.map(a=>a.id), additionalProperties:false },
+      matrix:{ type:'object', properties:matrixProps, required:ASSET_DEFS.map(a=>a.id), additionalProperties:false },
+      pos:{ type:'object', properties:posProps, required:POS_DEFS.map(p=>p.id), additionalProperties:false },
+      events:{ type:'array', items:{
+        type:'object',
+        properties:{ cat:{type:'string', enum:['Fed','Inflation','Central Bank','Energy','Geopolitics','Earnings','Growth','Employment','Trade','Other']}, t:str, dt:str, h:str, w:str, aa:str, imp:{type:'string', enum:['High','Medium','Low']}, src:str },
+        required:['cat','t','dt','h','w','aa','imp','src'], additionalProperties:false
+      }},
+      narratives:{ type:'array', items:{
+        type:'object',
+        properties:{ n:str, tone:{type:'string', enum:['bullish','bearish','neutral','macro','warning']}, s:numOrNull, aa:str, src:str },
+        required:['n','tone','s','aa','src'], additionalProperties:false
+      }},
+      watchlist:{ type:'array', items:{
+        type:'object',
+        properties:{ t:str, dt:str, e:str, f:str, imp:{type:'string', enum:['High','Medium','Low']}, aa:str, src:str },
+        required:['t','dt','e','f','imp','aa','src'], additionalProperties:false
+      }},
+      today:{ type:'array', items:{
+        type:'object',
+        properties:{ cat:str, t:str, title:str, aa:str, up:str, down:str, src:str },
+        required:['cat','t','title','aa','up','down','src'], additionalProperties:false
+      }},
+      summary:{ type:'object', properties:{ bullets:{ type:'array', items:{type:'string'} } }, required:['bullets'], additionalProperties:false }
+    },
+    required:['meta','macro','bias','matrix','pos','events','narratives','watchlist','today','summary'],
+    additionalProperties:false,
+    '$defs': defs
+  };
+}
+
 function groqKeyFormat(key){
   // Groq API keys always start with "gsk_" (console.groq.com/keys).
   if(typeof key !== 'string') return 'missing';
@@ -1635,7 +1711,11 @@ async function callGroq(messages, opts){
       temperature: opts.temperature != null ? opts.temperature : 0.3,
       max_completion_tokens: opts.maxOutputTokens || 8192,
     };
-    if(opts.json) body.response_format = { type: 'json_object' };
+    if(opts.jsonSchema){
+      body.response_format = { type:'json_schema', json_schema:{ name: opts.jsonSchema.name || 'response', strict:true, schema: opts.jsonSchema.schema } };
+    }else if(opts.json){
+      body.response_format = { type: 'json_object' };
+    }
     // reasoning_effort ('low'|'medium'|'high') is only honored by the
     // GPT-OSS models this file defaults to -- harmless to send otherwise.
     if(opts.reasoningEffort) body.reasoning_effort = opts.reasoningEffort;
@@ -1668,7 +1748,29 @@ async function callGroq(messages, opts){
     const data = await resp.json();
     const choice = data.choices && data.choices[0];
     const text = (choice && choice.message && choice.message.content) || '';
-    if(!text.trim()) throw new Error('Groq returned an empty response.');
+    const finishReason = choice && choice.finish_reason;
+    if(opts.debugLabel){
+      // Visible in the browser console only -- not shown in the UI. Reasoning
+      // models spend part of max_completion_tokens on internal reasoning
+      // before any visible output, so usage.completion_tokens hitting the
+      // cap with little/no text back is the signature of that, not a bug
+      // in this file. See CONFIG comment / console.groq.com/docs/reasoning.
+      console.debug(`[Groq:${opts.debugLabel}] finish_reason=${finishReason||'?'} usage=`, data.usage, 'contentChars=', text.length);
+    }
+    if(!text.trim()){
+      if(finishReason === 'length'){
+        throw new Error(`Groq (${CONFIG.GROQ_MODEL}) hit the token limit before writing any visible output -- reasoning alone used the full maxOutputTokens budget${opts.reasoningEffort ? ` (reasoningEffort:'${opts.reasoningEffort}')` : ''}. Raise maxOutputTokens and/or lower reasoningEffort for this call.`);
+      }
+      throw new Error('Groq returned an empty response.');
+    }
+    if(finishReason === 'length'){
+      // Got some text back, but it was cut off mid-generation -- for a JSON
+      // response this almost always means parseJsonLoose/JSON.parse below
+      // will fail (unclosed braces/arrays), which is the actual reason a
+      // caller falls back to the local parser rather than anything wrong
+      // with the API call itself.
+      console.warn(`Groq (${opts.debugLabel||'call'}) response was truncated by the token limit (finish_reason: length) -- likely incomplete JSON. Consider raising maxOutputTokens.`);
+    }
     return text.trim();
   } finally {
     clearTimeout(timeout);
@@ -1682,7 +1784,13 @@ function parseJsonLoose(text){
 }
 async function summarizeWithGroq(rawText, opts){
   const prompt = buildGroqPrompt(rawText, opts);
-  const text = await callGroq([{ role:'user', content: prompt }], { json:true, temperature:0.25, maxOutputTokens:8192, reasoningEffort:'high' });
+  const text = await callGroq([{ role:'user', content: prompt }], {
+    jsonSchema: { name:'market_intelligence_extraction', schema: buildGroqResponseSchema() },
+    temperature:0.25,
+    maxOutputTokens:16384,
+    reasoningEffort:'medium',
+    debugLabel:'summarize'
+  });
   return parseJsonLoose(text);
 }
 
@@ -2718,4 +2826,3 @@ document.addEventListener('DOMContentLoaded', init);
 </script>
 </body>
 </html>
-   
