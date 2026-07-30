@@ -408,7 +408,7 @@ button{ font-family:inherit; }
 /* ============================================================
    NEW — warn-tone variants for existing components
    (used when something recovers from a non-fatal failure,
-   e.g. Gemini being unavailable, distinct from a hard error)
+   e.g. Groq being unavailable, distinct from a hard error)
    ============================================================ */
 .pill.pill--warn{ color:var(--warn); border-color:rgba(232,197,71,0.35); background:var(--warn-dim); }
 .error-banner.warn-tone{ background:var(--warn-dim); border-color:rgba(232,197,71,0.35); color:var(--warn); }
@@ -611,7 +611,7 @@ button{ font-family:inherit; }
   </section>
 
   <footer class="term-footer">
-    <span>Structured off-device via Gemini · live search via NewsAPI</span>
+    <span>Structured off-device via Groq · live search via NewsAPI</span>
     <span id="footerRight">Ashford Capital — internal use</span>
   </footer>
 
@@ -703,51 +703,44 @@ const POS_DEFS = [
 ];
 
 /* ============================================================
-   CONFIG — external services (live news + AI summarization)
+   CONFIG -- external services (live news + AI summarization)
    ------------------------------------------------------------
    These are called directly from the browser, which is fine for
    internal/prototype use but means anyone who views this page's
    source or network tab can read the keys below. Before this
    terminal is ever hosted somewhere outside your own machine,
    move both calls behind a small backend/serverless proxy so the
-   keys never ship to the client — and rotate both keys at that
+   keys never ship to the client -- and rotate both keys at that
    point, since they've now been pasted into this file in plain
    text. NEWS_API_BASE assumes a NewsAPI.org key (their keys are
-   32-character hex strings) — if you're on a different provider,
+   32-character hex strings) -- if you're on a different provider,
    only fetchLiveNews() below needs to change. NewsAPI's free
    "Developer" plan also only allows browser requests from
-   localhost and delays articles ~24h — errors from that plan are
+   localhost and delays articles ~24h -- errors from that plan are
    surfaced as a specific message in fetchLiveNews() rather than a
    generic failure.
 
-   On the Gemini side: Google is transitioning the Gemini API from
-   "Standard" keys (old AIzaSy… format) to "Auth" keys (AQ.… format).
-   Auth keys are now the default AI Studio issues, unrestricted
-   Standard keys are already rejected, and Standard keys stop working
-   entirely in September 2026 — so the AQ. key configured below is the
-   currently-correct format, not a mistake.
-   Source: https://ai.google.dev/gemini-api/docs/api-key
-
-   Separately: multiple developers have reported on Google's own
-   community forum (discuss.ai.google.dev — search "ACCESS_TOKEN_TYPE_
-   UNSUPPORTED") that some AQ. keys get a 401 specifically on the
-   legacy generateContent endpoint (GEMINI_BASE below) even when
-   correctly configured. It doesn't hit every account and Google
-   hadn't published a root cause or fix ETA as of July 2026.
-   callGemini() below tries the newer Interactions API
-   (GEMINI_INTERACTIONS_BASE) first — current reports don't show it
-   affected — and only falls back to generateContent if that fails
-   for an unrelated reason. If you hit this 401, it's a Google-side
-   rollout issue to track via aistudio.google.com/apikey or the
-   forum above, not something to fix by editing this file.
+   On the AI side: this terminal was migrated off Gemini onto Groq
+   (console.groq.com). Groq exposes one OpenAI-compatible REST
+   endpoint for every hosted model, so callGroq() below is a
+   single request path -- no more of the old two-endpoint Gemini
+   fallback chain (Interactions API + legacy generateContent).
+   GROQ_MODEL defaults to openai/gpt-oss-120b: as of July 2026
+   that's Groq's own recommended replacement for the older
+   llama-3.3-70b-versatile / llama-3.1-8b-instant models, which
+   Groq has scheduled for shutdown on 08/16/26. Swap to
+   'openai/gpt-oss-20b' for a smaller/faster/cheaper model, or
+   check console.groq.com/docs/models for the current lineup if
+   this ID ever starts 404ing.
+   Groq API keys always start with "gsk_" -- get/rotate one at
+   console.groq.com/keys.
    ============================================================ */
 const CONFIG = {
   NEWS_API_KEY:   '2984934cdf28477fb4eccee3bdf6d197',
   NEWS_API_BASE:  'https://newsapi.org/v2',
-  GEMINI_API_KEY: 'AQ.Ab8RN6Iu2RqAOLFXOnLDZ0JZMW5M1kR5BH6iZKE_3xBy101XSQ',
-  GEMINI_MODEL:   'gemini-2.5-flash', // swap to e.g. 'gemini-3.6-flash' or 'gemini-2.5-flash' if this one 404s on your key
-  GEMINI_INTERACTIONS_BASE: 'https://generativelanguage.googleapis.com/v1beta/interactions',
-  GEMINI_BASE:    'https://generativelanguage.googleapis.com/v1beta/models',
+  GROQ_API_KEY:   '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',
+  GROQ_MODEL:     'openai/gpt-oss-120b', // swap to 'openai/gpt-oss-20b' for a faster/cheaper option
+  GROQ_BASE:      'https://api.groq.com/openai/v1/chat/completions',
 };
 
 /* ============================================================
@@ -758,7 +751,7 @@ let isDemo = false;
 let isParsing = false;
 let lastUpdatedAt = null; // Date
 let lastFoundCount = null; // how many fields/sections the last parse actually found
-let lastEngine = null;     // 'gemini' | 'local' | null — which extraction path produced the current dataset
+let lastEngine = null;     // 'groq' | 'local' | null — which extraction path produced the current dataset
 
 const watchlistState = { query:'', imp:'', sortKey:null, sortDir:'asc' };
 const macroTableState = { query:'', sortKey:null, sortDir:'asc' };
@@ -1497,14 +1490,14 @@ function extractIntelligenceLocal(rawText){
 }
 
 /* ==========================================================================
-   AI-POWERED EXTRACTION — Gemini structured summarization
+   AI-POWERED EXTRACTION — Groq structured summarization
    --------------------------------------------------------------------------
    This becomes the primary path (see handleNewIntelligence() far below):
-   it sends the source text to Gemini with a detailed schema-and-rules
+   it sends the source text to Groq with a detailed schema-and-rules
    prompt built from the same MACRO_DEFS / ASSET_DEFS / POS_DEFS the rest
    of the app already uses, so the prompt can never drift out of sync with
-   normalizeDataset(). Gemini's job is real synthesis, not sentence-
-   matching — see the RULES block in buildGeminiPrompt(). If this fails for
+   normalizeDataset(). Groq's job is real synthesis, not sentence-
+   matching — see the RULES block in buildGroqPrompt(). If this fails for
    any reason (network, bad key, malformed JSON), the caller falls back to
    extractIntelligenceLocal() above so the terminal still updates with
    *something* rather than nothing.
@@ -1549,7 +1542,7 @@ ASSET IDS \u2014 use exactly these keys under "bias" and "matrix": ${assetIds}
 POSITIONING THEME IDS \u2014 use exactly these keys under "pos": ${posIds}`;
 }
 
-function buildGeminiPrompt(rawText, opts){
+function buildGroqPrompt(rawText, opts){
   opts = opts || {};
   const keyword = opts.keyword || '';
   const sourceLabel = opts.sourceLabel || 'Pasted market intelligence text';
@@ -1614,172 +1607,82 @@ RULES \u2014 follow every one of these:
 10. If the source text is very short, unrelated to markets, or has almost nothing usable, it is correct to return a mostly-empty structure \u2014 do not pad it with invented content.`;
 }
 
-function geminiKeyFormat(key){
-  // Standard ("AIzaSy…") and Auth ("AQ.…") keys are both legitimate Gemini API
-  // key formats (see the CONFIG comment above for the migration timeline).
-  // NOTE: this was previously checking /^AIzaSy/ only, which meant a correctly
-  // -configured AQ. key was misreported as an invalid format — fixed below.
+function groqKeyFormat(key){
+  // Groq API keys always start with "gsk_" (console.groq.com/keys).
   if(typeof key !== 'string') return 'missing';
-  if(/^AIzaSy[\w-]{10,}$/.test(key)) return 'standard';
-  if(/^AQ\.[\w-]{10,}$/.test(key)) return 'auth';
+  if(/^gsk_[A-Za-z0-9]{20,}$/.test(key)) return 'standard';
   return 'unrecognized';
 }
-function isLikelyValidGeminiKeyFormat(key){
-  const fmt = geminiKeyFormat(key);
-  return fmt === 'standard' || fmt === 'auth';
-}
-function flattenContentsToText(contents){
-  // The Interactions API takes a single "input" string/turn rather than the
-  // {role,parts} history generateContent uses. For a single-turn call (the
-  // structured-extraction prompt) this is a no-op — the prompt goes through
-  // unchanged. For multi-turn chat history, turns are flattened into a
-  // labeled text block; Gemini reads this as conversational context fine.
-  if(contents.length === 1) return (contents[0].parts||[]).map(p=>p.text||'').join('');
-  return contents.map(c=>{
-    const text = (c.parts||[]).map(p=>p.text||'').join('');
-    return `${c.role==='model' ? 'ASSISTANT' : 'USER'}: ${text}`;
-  }).join('\n\n');
+function isLikelyValidGroqKeyFormat(key){
+  return groqKeyFormat(key) === 'standard';
 }
 
-/* ---- Primary path: Interactions API (generally available, actively
-   developed, and the endpoint auth/AQ. keys are meant for). Request/response
-   shape confirmed against Google's own docs and quickstart as of July 2026.
-   NOT independently confirmed to resolve the AQ.-key 401 issue specifically —
-   that part is a reasoned attempt, not a verified fix. ---- */
-async function callGeminiInteractions(contents, opts){
+/* ---- Groq chat completions -- a single OpenAI-compatible REST call.
+   Endpoint/headers/response shape confirmed against Groq's official
+   docs (console.groq.com/docs/text-chat, /structured-outputs,
+   /reasoning) as of July 2026. This replaces the old two-endpoint
+   Gemini fallback chain (callGeminiInteractions + callGeminiGenerateContent)
+   with a single path, since Groq doesn't have that legacy/new split --
+   every model is served from the one /chat/completions endpoint. ---- */
+async function callGroq(messages, opts){
+  opts = opts || {};
   const controller = new AbortController();
   const timeout = setTimeout(()=>controller.abort(), opts.timeoutMs || 45000);
   try{
-    const body = { model: CONFIG.GEMINI_MODEL, input: flattenContentsToText(contents) };
-    if(opts.json) body.response_format = [{ type:'text', mime_type:'application/json' }];
-    // NOTE: previously missing entirely — temperature/maxOutputTokens/thinkingLevel
-    // from opts were silently dropped on this (primary) path. Field names confirmed
-    // against https://ai.google.dev/api/interactions-api (generation_config.*, snake_case).
-    const generationConfig = {};
-    if(opts.temperature != null) generationConfig.temperature = opts.temperature;
-    if(opts.maxOutputTokens != null) generationConfig.max_output_tokens = opts.maxOutputTokens;
-    if(opts.thinkingLevel) generationConfig.thinking_level = opts.thinkingLevel;
-    if(Object.keys(generationConfig).length) body.generation_config = generationConfig;
+    const body = {
+      model: CONFIG.GROQ_MODEL,
+      messages,
+      temperature: opts.temperature != null ? opts.temperature : 0.3,
+      max_completion_tokens: opts.maxOutputTokens || 8192,
+    };
+    if(opts.json) body.response_format = { type: 'json_object' };
+    // reasoning_effort ('low'|'medium'|'high') is only honored by the
+    // GPT-OSS models this file defaults to -- harmless to send otherwise.
+    if(opts.reasoningEffort) body.reasoning_effort = opts.reasoningEffort;
     let resp;
     try{
-      resp = await fetch(CONFIG.GEMINI_INTERACTIONS_BASE, {
+      resp = await fetch(CONFIG.GROQ_BASE, {
         method: 'POST',
-        headers: { 'Content-Type':'application/json', 'x-goog-api-key': CONFIG.GEMINI_API_KEY },
+        headers: { 'Content-Type':'application/json', 'Authorization': `Bearer ${CONFIG.GROQ_API_KEY}` },
         signal: controller.signal,
         body: JSON.stringify(body)
       });
     }catch(networkErr){
-      if(networkErr.name==='AbortError') throw new Error('Gemini Interactions API request timed out.');
-      throw new Error('Could not reach the Gemini Interactions API from the browser.');
+      if(networkErr.name==='AbortError') throw new Error('Groq request timed out.');
+      throw new Error('Could not reach Groq from the browser -- check your connection.');
     }
     if(!resp.ok){
       let detail = '';
       try{ const errJson = await resp.json(); detail = (errJson && errJson.error && errJson.error.message) || ''; }catch(e){}
-      throw new Error(`Gemini Interactions API error ${resp.status}${detail ? ': '+detail : ''}`);
+      if(resp.status === 401){
+        throw new Error(`Groq rejected this API key (401${detail ? ': '+detail : ''}). Groq keys start with "gsk_" -- check CONFIG.GROQ_API_KEY in the code and console.groq.com/keys for a valid one.`);
+      }
+      if(resp.status === 404){
+        throw new Error(`Groq model "${CONFIG.GROQ_MODEL}" wasn't found (404)${detail ? ': '+detail : ''} -- it may have been deprecated. Check console.groq.com/docs/models for current model IDs.`);
+      }
+      if(resp.status === 429){
+        throw new Error(`Groq rate limit hit (429)${detail ? ': '+detail : ''} -- wait a moment and try again, or check console.groq.com for your current limits.`);
+      }
+      throw new Error(`Groq API error ${resp.status}${detail ? ': '+detail : ''}`);
     }
     const data = await resp.json();
-    const steps = Array.isArray(data.steps) ? data.steps : [];
-    let text = '';
-    for(let i=steps.length-1; i>=0; i--){
-      if(steps[i] && steps[i].type==='model_output' && Array.isArray(steps[i].content)){
-        const t = steps[i].content.filter(c=>c && c.type==='text').map(c=>c.text||'').join('');
-        if(t){ text = t; break; }
-      }
-    }
-    if(!text) throw new Error('Gemini Interactions API returned no text output.');
-    return text;
+    const choice = data.choices && data.choices[0];
+    const text = (choice && choice.message && choice.message.content) || '';
+    if(!text.trim()) throw new Error('Groq returned an empty response.');
+    return text.trim();
   } finally {
     clearTimeout(timeout);
   }
 }
 
-/* ---- Fallback path: the classic generateContent endpoint. Verified
-   directly against Google's current official docs (July 2026) for both the
-   endpoint and the x-goog-api-key header — this code is correct. The 401
-   ACCESS_TOKEN_TYPE_UNSUPPORTED error some AQ. keys hit here is a Google-
-   acknowledged, currently-open compatibility gap on this specific (now
-   "Legacy"-labeled) endpoint, not a request-construction bug. ---- */
-async function callGeminiGenerateContent(promptText, opts){
-  const controller = new AbortController();
-  const timeout = setTimeout(()=>controller.abort(), opts.timeoutMs || 45000);
-  try{
-    const generationConfig = {
-      temperature: opts.temperature!=null ? opts.temperature : 0.3,
-      maxOutputTokens: opts.maxOutputTokens || 8192,
-    };
-    if(opts.json) generationConfig.responseMimeType = 'application/json';
-    if(opts.thinkingLevel) generationConfig.thinkingConfig = { thinkingLevel: opts.thinkingLevel };
-    let resp;
-    try{
-      resp = await fetch(`${CONFIG.GEMINI_BASE}/${CONFIG.GEMINI_MODEL}:generateContent`, {
-        method: 'POST',
-        headers: { 'Content-Type':'application/json', 'x-goog-api-key': CONFIG.GEMINI_API_KEY },
-        signal: controller.signal,
-        body: JSON.stringify({
-          contents: opts.contents || [{ role:'user', parts:[{ text: promptText }] }],
-          generationConfig
-        })
-      });
-    }catch(networkErr){
-      if(networkErr.name==='AbortError') throw new Error('Gemini request timed out.');
-      throw new Error('Could not reach Gemini from the browser \u2014 check your connection.');
-    }
-    if(!resp.ok){
-      let detail = '';
-      try{ const errJson = await resp.json(); detail = (errJson && errJson.error && errJson.error.message) || ''; }catch(e){}
-      const isAuthTypeError = resp.status === 401 && /OAuth 2 access token/i.test(detail);
-      if(isAuthTypeError){
-        const keyFormat = geminiKeyFormat(CONFIG.GEMINI_API_KEY);
-        if(keyFormat === 'auth'){
-          throw new Error('Gemini rejected this Auth-format ("AQ.") key on the legacy generateContent endpoint (401 ACCESS_TOKEN_TYPE_UNSUPPORTED). This matches a known, currently-unresolved issue affecting some accounts on Google\u2019s side \u2014 not a bug in this file \u2014 discussed on Google\u2019s own developer forum (discuss.ai.google.dev). The Interactions API is tried first for this reason; since that also failed here, check https://aistudio.google.com/status and discuss.ai.google.dev for the current state, or confirm the key works by testing it directly in Google AI Studio.');
-        }
-        if(keyFormat === 'standard'){
-          throw new Error('Gemini rejected this Standard-format ("AIzaSy\u2026") key (401 ACCESS_TOKEN_TYPE_UNSUPPORTED). Standard keys must now be explicitly restricted to the Gemini API to keep working, and stop working entirely in September 2026 \u2014 check aistudio.google.com/api-keys for this key\u2019s status (it may show as unrestricted, disabled, or flagged) and consider migrating to an Auth key.');
-        }
-        throw new Error('Gemini rejected this key (401 ACCESS_TOKEN_TYPE_UNSUPPORTED) \u2014 the configured GEMINI_API_KEY doesn\u2019t match either known Gemini key format ("AIzaSy\u2026" or "AQ.\u2026"). Check aistudio.google.com/apikey for a valid key.');
-      }
-      throw new Error(`Gemini API error ${resp.status}${detail ? ': '+detail : ''}`);
-    }
-    const data = await resp.json();
-    if(data.promptFeedback && data.promptFeedback.blockReason){
-      throw new Error('Gemini blocked this request: '+data.promptFeedback.blockReason);
-    }
-    const parts = (data.candidates && data.candidates[0] && data.candidates[0].content && data.candidates[0].content.parts) || [];
-    const text = parts.map(p=>p.text||'').join('').trim();
-    if(!text) throw new Error('Gemini returned an empty response.');
-    return text;
-  } finally {
-    clearTimeout(timeout);
-  }
-}
-
-/* ---- Orchestrator: try the Interactions API first, fall back to
-   generateContent on any failure. Callers (summarizeWithGemini,
-   sendChatMessage) are unchanged — they still call callGemini(promptText, opts)
-   exactly as before. ---- */
-async function callGemini(promptText, opts){
-  opts = opts || {};
-  const contents = opts.contents || [{ role:'user', parts:[{ text: promptText }] }];
-  try{
-    return await callGeminiInteractions(contents, opts);
-  }catch(interactionsErr){
-    console.warn('Gemini Interactions API failed, falling back to generateContent', interactionsErr);
-    try{
-      return await callGeminiGenerateContent(promptText, opts);
-    }catch(generateContentErr){
-      generateContentErr.message = `${generateContentErr.message} (The newer Interactions API endpoint was tried first and also failed: ${interactionsErr.message})`;
-      throw generateContentErr;
-    }
-  }
-}
 function parseJsonLoose(text){
   let t = text.trim();
   if(t.startsWith('```')){ t = t.replace(/^```(json)?/i,'').replace(/```$/,'').trim(); }
   return JSON.parse(t);
 }
-async function summarizeWithGemini(rawText, opts){
-  const prompt = buildGeminiPrompt(rawText, opts);
-  const text = await callGemini(prompt, { json:true, temperature:0.25, maxOutputTokens:8192, thinkingLevel:'high' });
+async function summarizeWithGroq(rawText, opts){
+  const prompt = buildGroqPrompt(rawText, opts);
+  const text = await callGroq([{ role:'user', content: prompt }], { json:true, temperature:0.25, maxOutputTokens:8192, reasoningEffort:'high' });
   return parseJsonLoose(text);
 }
 
@@ -1871,7 +1774,7 @@ async function handleFileUpload(file){
 }
 
 /* ==========================================================================
-   GLOBAL SEARCH \u2014 keyword \u2192 live news \u2192 Gemini synthesis, shown in a
+   GLOBAL SEARCH \u2014 keyword \u2192 live news \u2192 Groq synthesis, shown in a
    popup with full un-truncated detail AND merged into the terminal boards
    through the exact same merge pipeline a manual paste uses
    ========================================================================== */
@@ -1899,7 +1802,7 @@ function renderSearchResults(keyword, articles, structured, foundCount){
     if(headline) html += `<div class="search-synthesis-item" style="font-weight:600;color:var(--text)">${esc(headline)}</div>`;
     html += bullets.map(b=>`<div class="search-synthesis-item">${esc(b)}</div>`).join('');
   } else if(structured){
-    html += `<div class="search-section-title">Live Synthesis</div><div class="search-synthesis-item">Gemini couldn\u2019t extract a clear structured synthesis for \u201c${esc(keyword)}\u201d \u2014 see the raw articles below.</div>`;
+    html += `<div class="search-section-title">Live Synthesis</div><div class="search-synthesis-item">Groq couldn\u2019t extract a clear structured synthesis for \u201c${esc(keyword)}\u201d \u2014 see the raw articles below.</div>`;
   }
   html += `<div class="search-section-title">Articles Found (${articles.length})</div>`;
   if(!articles.length){
@@ -1933,15 +1836,15 @@ async function runGlobalSearch(keyword){
     }).join('\n\n---\n\n');
     let structured = null, foundCount = 0;
     try{
-      const rawStructured = await summarizeWithGemini(combinedText, { keyword, sourceLabel: `Live news search: "${keyword}"` });
+      const rawStructured = await summarizeWithGroq(combinedText, { keyword, sourceLabel: `Live news search: "${keyword}"` });
       structured = normalizeDataset(rawStructured);
       const merged = mergeWithPrevious(structured, dataset);
       if(merged.foundCount > 0){
         dataset = merged.data; isDemo = false; lastUpdatedAt = new Date();
-        lastFoundCount = merged.foundCount; lastEngine = 'gemini'; foundCount = merged.foundCount;
+        lastFoundCount = merged.foundCount; lastEngine = 'groq'; foundCount = merged.foundCount;
         renderAll(); persistDataset(dataset, false);
       }
-    }catch(geminiErr){ console.warn('Gemini structuring failed for search', geminiErr); }
+    }catch(groqErr){ console.warn('Groq structuring failed for search', groqErr); }
     renderSearchResults(keyword, articles, structured, foundCount);
   }catch(err){
     console.error(err);
@@ -1953,7 +1856,7 @@ async function runGlobalSearch(keyword){
 }
 
 /* ==========================================================================
-   TERMINAL ASSISTANT \u2014 Gemini-powered chat, grounded in the current
+   TERMINAL ASSISTANT \u2014 Groq-powered chat, grounded in the current
    dataset plus the same explainer text the detail modal uses, so answers
    stay tied to what's actually on screen instead of drifting off it
    ========================================================================== */
@@ -1964,8 +1867,8 @@ function openChat(){
   $('#chatPanel').classList.remove('hidden');
   if(chatHistory.length === 0){
     chatHistory.push({role:'model', text:CHAT_GREETING});
-    if(!isLikelyValidGeminiKeyFormat(CONFIG.GEMINI_API_KEY)){
-      chatHistory.push({role:'model', error:true, text:'Heads up: the configured Gemini key doesn\u2019t match either known Gemini API key format ("AIzaSy\u2026" or "AQ.\u2026"). Check CONFIG.GEMINI_API_KEY in the code and aistudio.google.com/apikey for a valid key.'});
+    if(!isLikelyValidGroqKeyFormat(CONFIG.GROQ_API_KEY)){
+      chatHistory.push({role:'model', error:true, text:'Heads up: the configured Groq key doesn\u2019t match the expected Groq API key format ("gsk_..."). Check CONFIG.GROQ_API_KEY in the code and console.groq.com/keys for a valid key.'});
     }
     renderChatMessages();
   }
@@ -2019,16 +1922,15 @@ async function sendChatMessage(text){
   renderChatMessages();
   try{
     const systemPrompt = buildChatSystemPrompt();
-    const contents = [
-      { role:'user', parts:[{ text: systemPrompt }] },
-      { role:'model', parts:[{ text: 'Understood \u2014 I\u2019ll stick to explaining this dashboard and its data, grounded only in what\u2019s shown.' }] },
-      ...chatHistory.slice(-16).map(m=>({ role: m.role==='user'?'user':'model', parts:[{text:m.text}] }))
+    const messages = [
+      { role:'system', content: systemPrompt },
+      ...chatHistory.slice(-16).map(m=>({ role: m.role==='user'?'user':'assistant', content: m.text }))
     ];
-    const reply = await callGemini(null, { contents, temperature:0.4, maxOutputTokens:1024 });
+    const reply = await callGroq(messages, { temperature:0.4, maxOutputTokens:1024 });
     chatHistory.push({role:'model', text:reply});
   }catch(err){
     console.error(err);
-    chatHistory.push({role:'model', text:`Couldn\u2019t reach Gemini: ${err.message||'unknown error'}`, error:true});
+    chatHistory.push({role:'model', text:`Couldn\u2019t reach Groq: ${err.message||'unknown error'}`, error:true});
   }finally{
     isChatting = false;
     renderChatMessages();
@@ -2242,7 +2144,7 @@ function renderStatusPills(){
   pills.push(`<span class="pill">${esc(computeMarketSession())}</span>`);
   const refreshTxt = (typeof lastFoundCount==='number') ? `Signals: ${lastFoundCount} Found` : (dataset ? 'Refresh: Up To Date' : 'Refresh: —');
   pills.push(`<span class="pill">${refreshTxt}</span>`);
-  if(lastEngine) pills.push(`<span class="pill${lastEngine==='local'?' pill--warn':''}">Engine: ${lastEngine==='gemini'?'Gemini':'Local Fallback'}</span>`);
+  if(lastEngine) pills.push(`<span class="pill${lastEngine==='local'?' pill--warn':''}">Engine: ${lastEngine==='groq'?'Groq':'Local Fallback'}</span>`);
   pills.push(isParsing ? `<span class="pill pill--parsing">Parsing…</span>` : `<span class="pill">Parse: Idle</span>`);
   $('#statusPills').innerHTML = pills.join('');
 }
@@ -2536,15 +2438,15 @@ function renderSummary(){
    note on the extraction logic behind that section.
    ============================================================ */
 const EXPLAIN_TEXT = {
-  macro: 'Gemini reads the full source text (pasted, uploaded, or pulled from a live news search) and pulls out any of these indicators it explicitly discusses, classifying each reading as current / prior / consensus and assessing the trend direction. A figure only appears here if the source text actually stated it — nothing is estimated.',
-  bias: 'Gemini assesses directional bias from the bullish/bearish language surrounding each asset in the source text (e.g. "rallied", "sold off", "buoyed by") rather than matching fixed keywords, so it can weigh mixed or hedged language the way an analyst would. Confidence reflects how one-sided and explicit that language was. Bond bias specifically inverts yield language — falling yields read bullish for bonds, not bearish.',
-  pos: 'This theme is Gemini\u2019s read of the bullish/bearish/hawkish/dovish tone around its topic in the source text, cross-checked for consistency against the matching macro or asset reading where one exists (e.g. the Dollar theme should track the DXY tile, the Gold theme should track the Gold bias card).',
-  event: 'Selected by Gemini as one of the most market-moving developments actually described in the source text, ranked by importance. Market Moving Events favors a higher bar than the Watchlist so this list stays genuinely significant.',
-  narrative: 'Gemini\u2019s read of the dominant themes running through the source text (e.g. "risk-off", "dovish pivot", "sticky inflation"), with a strength score reflecting how central that theme was to the text.',
+  macro: 'Groq reads the full source text (pasted, uploaded, or pulled from a live news search) and pulls out any of these indicators it explicitly discusses, classifying each reading as current / prior / consensus and assessing the trend direction. A figure only appears here if the source text actually stated it — nothing is estimated.',
+  bias: 'Groq assesses directional bias from the bullish/bearish language surrounding each asset in the source text (e.g. "rallied", "sold off", "buoyed by") rather than matching fixed keywords, so it can weigh mixed or hedged language the way an analyst would. Confidence reflects how one-sided and explicit that language was. Bond bias specifically inverts yield language — falling yields read bullish for bonds, not bearish.',
+  pos: 'This theme is Groq\u2019s read of the bullish/bearish/hawkish/dovish tone around its topic in the source text, cross-checked for consistency against the matching macro or asset reading where one exists (e.g. the Dollar theme should track the DXY tile, the Gold theme should track the Gold bias card).',
+  event: 'Selected by Groq as one of the most market-moving developments actually described in the source text, ranked by importance. Market Moving Events favors a higher bar than the Watchlist so this list stays genuinely significant.',
+  narrative: 'Groq\u2019s read of the dominant themes running through the source text (e.g. "risk-off", "dovish pivot", "sticky inflation"), with a strength score reflecting how central that theme was to the text.',
   watchlist: 'The same event-significance read as Market Moving Events, filtered to forward-looking items — things scheduled or due, rather than things that already happened.',
-  today: 'Items Gemini identified as specifically relevant to today\u2019s session. The two scenarios below are general, textbook market relationships for this event category — not a prediction of which way it will actually go.',
+  today: 'Items Groq identified as specifically relevant to today\u2019s session. The two scenarios below are general, textbook market relationships for this event category — not a prediction of which way it will actually go.',
   'risk-gauge': 'A weighted average of every asset\u2019s bias (Bullish +1 / Neutral 0 / Bearish \u22121), weighted by that asset\u2019s confidence score, rescaled to \u2212100…+100.',
-  summary: 'These bullets are Gemini\u2019s own synthesized, strategic conclusions from the most recently analyzed text — not sentences copied out of it — covering what matters and its likely read-through across asset classes. A thin follow-up update won\u2019t overwrite a substantial existing summary.',
+  summary: 'These bullets are Groq\u2019s own synthesized, strategic conclusions from the most recently analyzed text — not sentences copied out of it — covering what matters and its likely read-through across asset classes. A thin follow-up update won\u2019t overwrite a substantial existing summary.',
 };
 function detailRow(k, v){ return `<div class="detail-row"><span class="detail-k">${esc(k)}</span><span class="detail-v">${v}</span></div>`; }
 function detailSourceBlock(src){
@@ -2665,9 +2567,9 @@ async function handleNewIntelligence(rawText, opts){
   try{
     let rawExtracted;
     try{
-      rawExtracted = await summarizeWithGemini(rawText, { sourceLabel: opts.sourceLabel || 'Pasted market intelligence text' });
-    }catch(geminiErr){
-      console.warn('Gemini summarization failed, falling back to the local parser', geminiErr);
+      rawExtracted = await summarizeWithGroq(rawText, { sourceLabel: opts.sourceLabel || 'Pasted market intelligence text' });
+    }catch(groqErr){
+      console.warn('Groq summarization failed, falling back to the local parser', groqErr);
       usedFallback = true;
       await new Promise(r=>setTimeout(r, 150)); // keep the "Parsing…" state perceptible
       rawExtracted = extractIntelligenceLocal(rawText);
@@ -2676,14 +2578,14 @@ async function handleNewIntelligence(rawText, opts){
     const { data, foundCount } = mergeWithPrevious(fresh, dataset);
     if(foundCount === 0){
       showError(usedFallback
-        ? 'Gemini was unavailable and the local backup parser couldn\u2019t find recognizable market intelligence either — try different text.'
+        ? 'Groq was unavailable and the local backup parser couldn\u2019t find recognizable market intelligence either — try different text.'
         : 'Couldn\u2019t find any recognizable market intelligence in that text — try pasting a fuller excerpt.');
     } else {
       dataset = data;
       isDemo = false;
       lastUpdatedAt = new Date();
       lastFoundCount = foundCount;
-      lastEngine = usedFallback ? 'local' : 'gemini';
+      lastEngine = usedFallback ? 'local' : 'groq';
       renderAll();
       persistDataset(dataset, false);
       if(!opts.keepInput){
@@ -2691,7 +2593,7 @@ async function handleNewIntelligence(rawText, opts){
         $('#pasteZone').style.height = '';
       }
       if(usedFallback){
-        showError('Gemini summarization was unavailable, so this update used the local backup parser instead — figures may be less nuanced than usual.', 'warn');
+        showError('Groq summarization was unavailable, so this update used the local backup parser instead — figures may be less nuanced than usual.', 'warn');
       }
     }
   }catch(err){
@@ -2816,3 +2718,4 @@ document.addEventListener('DOMContentLoaded', init);
 </script>
 </body>
 </html>
+   
