@@ -1552,8 +1552,8 @@ Your job is to read the SOURCE TEXT below and produce ONE strict JSON object tha
 
 SOURCE (${sourceLabel}):
 """
-${rawText.slice(0, 24000)}
-"""
+${rawText.slice(0, 60000)}
+"""${rawText.length > 60000 ? `\n(Source text was ${rawText.length.toLocaleString()} characters; only the first 60,000 were sent. If earlier sections matter more than later ones for this document, mention that below.)` : ''}
 ${keyword ? `\nThe user is specifically researching: "${keyword}". Prioritize anything in the text relevant to that topic across every section below, but still populate any other section the text genuinely supports.\n` : ''}
 ${schemaPromptBlock()}
 
@@ -1608,14 +1608,22 @@ RULES \u2014 follow every one of these:
 }
 
 /* ==========================================================================
-   STRICT RESPONSE SCHEMA \u2014 built from the same MACRO_DEFS / ASSET_DEFS /
-   POS_DEFS as buildGroqPrompt(), so the two can never drift apart. Passed as
-   response_format:{type:'json_schema', json_schema:{strict:true, ...}} in
-   summarizeWithGroq(). Under strict:true, Groq uses constrained decoding \u2014
-   the model is literally incapable of emitting a key, type, or enum value
-   outside this shape, which is what json_object (best-effort) mode does not
-   guarantee. This does NOT guarantee the *content* is insightful, only that
-   it lands in the right place -- see buildGroqPrompt()'s RULES for that half.
+   RESPONSE SCHEMA -- built from the same MACRO_DEFS / ASSET_DEFS /
+   POS_DEFS as buildGroqPrompt(), so the two can never drift apart. Used as
+   response_format:{type:'json_schema', json_schema:{strict:<bool>, ...}}
+   in summarizeWithGroq() with strict:false (best-effort) as the primary
+   mode: Groq treats this shape as strong guidance for every field/key name
+   -- which is the actual fix for data landing in the wrong dashboard card
+   -- without hard-rejecting the whole response when one field doesn't
+   cleanly fit, which matters here because most source text is pasted from
+   PDFs or plain-text files rather than hand-written to be tidy. strict:true
+   (pass jsonSchema.strict:true from a caller) gives a firmer guarantee via
+   constrained decoding when the source is clean, at the cost of Groq's
+   validator occasionally hard-rejecting real GPT-OSS responses outright
+   (console.groq.com community-reported, ~10% of requests as of mid-2026) --
+   which is why summarizeWithGroq() no longer defaults to it. Either way,
+   this schema does NOT guarantee the *content* is insightful, only that it
+   lands in the right place -- see buildGroqPrompt()'s RULES for that half.
    ========================================================================== */
 function buildGroqResponseSchema(){
   const str = { type:'string' };
@@ -1717,7 +1725,7 @@ async function callGroq(messages, opts){
       max_completion_tokens: opts.maxOutputTokens || 8192,
     };
     if(opts.jsonSchema){
-      body.response_format = { type:'json_schema', json_schema:{ name: opts.jsonSchema.name || 'response', strict:true, schema: opts.jsonSchema.schema } };
+      body.response_format = { type:'json_schema', json_schema:{ name: opts.jsonSchema.name || 'response', strict: opts.jsonSchema.strict !== false, schema: opts.jsonSchema.schema } };
     }else if(opts.json){
       body.response_format = { type: 'json_object' };
     }
@@ -1888,7 +1896,25 @@ async function extractTextFromFile(file){
     for(let i=1; i<=pdf.numPages; i++){
       const page = await pdf.getPage(i);
       const content = await page.getTextContent();
-      text += content.items.map(it=>it.str).join(' ') + '\n\n';
+      // pdf.js returns text items in content-stream order, which for
+      // multi-column layouts or tables (common in market/financial PDFs)
+      // is NOT the same as visual reading order -- naively space-joining
+      // every item (the previous approach) scrambles that structure before
+      // the AI ever sees it. Each item's transform[5] is its vertical (y)
+      // position on the page; a meaningful jump between consecutive items
+      // means a new line, so a line break belongs there instead of a space.
+      let pageText = '', lastY = null;
+      content.items.forEach(it=>{
+        const y = it.transform && it.transform[5];
+        if(lastY != null && y != null && Math.abs(y - lastY) > 2){
+          pageText += '\n';
+        }else if(pageText && !pageText.endsWith('\n')){
+          pageText += ' ';
+        }
+        pageText += it.str;
+        if(y != null) lastY = y;
+      });
+      text += pageText + '\n\n';
     }
     return text;
   }
