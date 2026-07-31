@@ -540,8 +540,8 @@ button{ font-family:inherit; }
       <textarea id="pasteZone" rows="1" placeholder="Paste raw market intelligence to refresh the terminal — parses automatically, no submit needed…"></textarea>
     </label>
     <span class="pill hidden" id="uploadStatusPill"></span>
-    <input type="file" id="fileUploadInput" accept=".txt,.docx,.pdf,text/plain" hidden>
-    <button class="btn-icon" id="uploadBtn" title="Upload a .txt, .docx, or .pdf file to analyze" aria-label="Upload file">
+    <input type="file" id="fileUploadInput" accept=".txt,.docx,.pdf,.json,text/plain,application/json" hidden>
+    <button class="btn-icon" id="uploadBtn" title="Upload a .txt, .docx, .pdf, or .json file to analyze" aria-label="Upload file">
       <svg width="15" height="15" viewBox="0 0 16 16" fill="none"><path d="M8 10.5V2.5M8 2.5L5 5.5M8 2.5l3 3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M2.5 10.5v2A1.5 1.5 0 0 0 4 14h8a1.5 1.5 0 0 0 1.5-1.5v-2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
     </button>
     <button class="btn-icon" id="retryBtn" title="Re-run parse on current input" aria-label="Re-run parse">⟳</button>
@@ -1862,8 +1862,17 @@ async function fetchLiveNews(keyword){
 }
 
 /* ==========================================================================
-   FILE UPLOAD \u2014 .txt / .docx / .pdf \u2192 plain text, then straight into the
-   same handleNewIntelligence() pipeline a manual paste already uses
+   FILE UPLOAD -- .txt / .docx / .pdf / .json \u2192 plain text, then straight
+   into the same handleNewIntelligence() pipeline a manual paste already
+   uses. A .json upload is NOT a structured-data import that bypasses
+   analysis and writes straight to the dashboard -- it's treated exactly
+   like any other source file: its (pretty-printed) text content is read
+   by the same Groq summarization prompt as a .txt file would be. That's
+   deliberate: this app has no dashboard-shaped JSON import path, so a
+   raw upload of Groq's own output shape wouldn't do anything useful here
+   even if one existed. If what's actually wanted is "load a dashboard
+   snapshot back in without re-running the AI," that's a different,
+   not-yet-built feature -- ask before assuming this covers it.
    ========================================================================== */
 let _mammothPromise = null, _pdfjsPromise = null;
 function ensureMammoth(){
@@ -1882,6 +1891,22 @@ async function extractTextFromFile(file){
   const name = file.name || '';
   const ext = name.split('.').pop().toLowerCase();
   if(ext === 'txt' || file.type === 'text/plain') return await file.text();
+  if(ext === 'json' || file.type === 'application/json'){
+    const raw = await file.text();
+    try{
+      // Pretty-print so the model reads indented, legible structure instead
+      // of one long minified line -- same content either way, just easier
+      // to parse visually (the AI still receives this as plain source text
+      // through the exact same pipeline as .txt/.docx/.pdf, not as a
+      // structured data import -- see the section comment below).
+      return JSON.stringify(JSON.parse(raw), null, 2);
+    }catch(e){
+      // Not strictly valid JSON (trailing commas, JSONL, a .json-named log
+      // file, etc.) -- hand it to the AI as-is rather than blocking the
+      // upload over a formatting technicality.
+      return raw;
+    }
+  }
   if(ext === 'docx'){
     await ensureMammoth();
     const buf = await file.arrayBuffer();
@@ -1918,7 +1943,7 @@ async function extractTextFromFile(file){
     }
     return text;
   }
-  throw new Error('Unsupported file type \u2014 upload a .txt, .docx, or .pdf file.');
+  throw new Error('Unsupported file type \u2014 upload a .txt, .docx, .pdf, or .json file.');
 }
 function setUploadStatus(msg){
   const el = $('#uploadStatusPill');
