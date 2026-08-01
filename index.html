@@ -124,6 +124,17 @@ button{ font-family:inherit; }
 .status-pills{ display:flex; gap:6px; flex-wrap:wrap; justify-content:flex-end; }
 .live-clock{ font-family:var(--font-mono); font-size:11px; color:var(--text-faint); letter-spacing:0.5px; }
 
+.headline-bar{
+  display:flex; align-items:baseline; gap:8px;
+  font-size:13.5px; color:var(--text); font-weight:500;
+  padding-bottom:12px; margin-bottom:12px; border-bottom:1px solid var(--border-soft);
+}
+.headline-bar.hidden{ display:none; }
+.headline-bar .headline-tag{
+  font-family:var(--font-mono); font-size:10px; font-weight:600; letter-spacing:0.8px;
+  color:var(--text-faint); text-transform:uppercase; flex-shrink:0;
+}
+
 .control-row{
   display:flex; align-items:stretch; gap:8px; margin-bottom:10px;
 }
@@ -533,6 +544,11 @@ button{ font-family:inherit; }
       <div class="status-pills" id="statusPills"></div>
     </div>
   </header>
+
+  <div class="headline-bar hidden" id="headlineBar">
+    <span class="headline-tag">Headline</span>
+    <span id="headlineText"></span>
+  </div>
 
   <div class="control-row">
     <label class="paste-wrap" for="pasteZone">
@@ -2731,8 +2747,18 @@ function openDetail(type, id){
 }
 function closeDetail(){ $('#detailOverlay').classList.add('hidden'); }
 
+function renderHeadline(){
+  const bar = $('#headlineBar');
+  const headline = dataset && dataset.meta && dataset.meta.headline;
+  if(headline){
+    $('#headlineText').textContent = headline;
+    bar.classList.remove('hidden');
+  } else {
+    bar.classList.add('hidden');
+  }
+}
 function renderAll(){
-  renderStatusPills(); renderMacroStrip(); renderBiasStrip(); renderRiskGauge();
+  renderStatusPills(); renderHeadline(); renderMacroStrip(); renderBiasStrip(); renderRiskGauge();
   renderEvents(); renderNarratives(); renderWatchlist(); renderMacroTable(); renderMatrix(); renderPositioning();
   renderTodayFocus(); renderSummary();
 }
@@ -2795,7 +2821,7 @@ async function handleNewIntelligence(rawText, opts){
     }
   }catch(err){
     console.error(err);
-    showError('Analysis failed — please try again with different text.');
+    showError(`Analysis failed: ${err && err.message ? err.message : 'unknown error'} -- please try again or open the browser console for the full detail.`);
   }finally{
     isParsing = false;
     $('#retryBtn').classList.remove('spin');
