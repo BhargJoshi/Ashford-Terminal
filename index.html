@@ -739,8 +739,8 @@ const POS_DEFS = [
    On the AI side: this terminal was migrated off Gemini onto Groq
    (console.groq.com). Groq exposes one OpenAI-compatible REST
    endpoint for every hosted model, so callGroq() below is a
-   single request path -- no more of the old two-endpoint Gemini
-   fallback chain (Interactions API + legacy generateContent).
+   single low-level request path -- no more of the old two-endpoint
+   Gemini fallback chain (Interactions API + legacy generateContent).
    GROQ_MODEL defaults to openai/gpt-oss-120b: as of July 2026
    that's Groq's own recommended replacement for the older
    llama-3.3-70b-versatile / llama-3.1-8b-instant models, which
@@ -750,6 +750,22 @@ const POS_DEFS = [
    this ID ever starts 404ing.
    Groq API keys always start with "gsk_" -- get/rotate one at
    console.groq.com/keys.
+
+   summarizeWithGroq() (search for it below) does NOT make a single
+   call anymore. It fires two smaller structured-extraction calls in
+   parallel -- one for the macro/bias/matrix/pos board, one for the
+   events/narratives/watchlist/today/summary board -- and merges
+   whichever succeed. This replaced a single-call version that asked
+   one request to reason through and then write out ~90+ required
+   fields at once: GPT-OSS's reasoning tokens share the SAME
+   max_completion_tokens budget as its visible output (there's no
+   separate "thinking budget" -- console.groq.com/docs/reasoning), so
+   that large a schema could exhaust the budget on reasoning alone,
+   come back truncated (finish_reason:'length') or occasionally as
+   free-form prose instead of JSON, fail to parse, and silently drop
+   to the local keyword-parser fallback -- which is what "summarizes
+   using the local parser instead of the API" looked like from the
+   UI. See the comment above buildCorePrompt() for the full writeup.
    ============================================================ */
 const CONFIG = {
   NEWS_API_KEY:   '2984934cdf28477fb4eccee3bdf6d197',
@@ -1509,14 +1525,14 @@ function extractIntelligenceLocal(rawText){
    AI-POWERED EXTRACTION — Groq structured summarization
    --------------------------------------------------------------------------
    This becomes the primary path (see handleNewIntelligence() far below):
-   it sends the source text to Groq with a detailed schema-and-rules
-   prompt built from the same MACRO_DEFS / ASSET_DEFS / POS_DEFS the rest
-   of the app already uses, so the prompt can never drift out of sync with
-   normalizeDataset(). Groq's job is real synthesis, not sentence-
-   matching — see the RULES block in buildGroqPrompt(). If this fails for
-   any reason (network, bad key, malformed JSON), the caller falls back to
-   extractIntelligenceLocal() above so the terminal still updates with
-   *something* rather than nothing.
+   it sends the source text to Groq as two parallel structured-extraction
+   calls built from the same MACRO_DEFS / ASSET_DEFS / POS_DEFS the rest
+   of the app already uses, so the prompts can never drift out of sync
+   with normalizeDataset(). Groq's job is real synthesis, not sentence-
+   matching — see the RULES blocks in buildCorePrompt() / buildFlowPrompt().
+   If this fails for any reason (network, bad key, malformed JSON), the
+   caller falls back to extractIntelligenceLocal() above so the terminal
+   still updates with *something* rather than nothing.
    ========================================================================== */
 function loadScript(src){
   return new Promise((resolve, reject)=>{
@@ -1558,19 +1574,56 @@ ASSET IDS \u2014 use exactly these keys under "bias" and "matrix": ${assetIds}
 POSITIONING THEME IDS \u2014 use exactly these keys under "pos": ${posIds}`;
 }
 
-function buildGroqPrompt(rawText, opts){
-  opts = opts || {};
+/* ==========================================================================
+   PROMPTS \u2014 split into two independent slices (core + flow) instead of
+   one combined request asking for ~90+ required fields in a single shot.
+
+   ROOT CAUSE this addresses: GPT-OSS's reasoning tokens share the SAME
+   max_completion_tokens budget as its visible output -- there's no separate
+   "thinking budget" (console.groq.com/docs/reasoning, GPT-OSS section: "By
+   default, these models will include reasoning content in the `reasoning`
+   field"; the Reasoning Effort table confirms 'medium'/'high' spend a
+   "moderate"/"large" number of tokens before any visible text appears).
+   Asking one call to reason through and then write out meta+macro+bias+
+   matrix+pos+events+narratives+watchlist+today+summary in a single pass is
+   exactly the kind of complex, many-field task Groq's own Structured
+   Outputs guide warns about: "For persistent errors ... decompose complex
+   tasks" (console.groq.com/docs/structured-outputs, Best Practices). When
+   reasoning + JSON output together exceeded the token budget, finish_reason
+   came back 'length' with truncated/invalid JSON -- both the strict and
+   json_object attempts failed the same way, and handleNewIntelligence()
+   fell all the way back to the local keyword parser, matching exactly what
+   was being reported.
+
+   Splitting into two calls run in PARALLEL (see extractStructured() /
+   summarizeWithGroq() below) roughly halves the required-field count and
+   the reasoning scope per call, and means one slice failing no longer
+   takes the other down with it -- mergeWithPrevious() already merges
+   field-by-field, so a partial AI result degrades gracefully instead of
+   the whole board dropping to the keyword parser. The tradeoff: the source
+   text is sent twice (once per slice) instead of once, and the two calls
+   can't cross-check each other's output for consistency the way one call
+   could -- an acceptable cost for reliability here, and Groq's prompt
+   caching (console.groq.com/docs/prompt-caching) mitigates most of the
+   repeated-input cost since both prompts share the same source text.
+   ========================================================================== */
+function sourceBlock(rawText, opts){
   const keyword = opts.keyword || '';
   const sourceLabel = opts.sourceLabel || 'Pasted market intelligence text';
-  return `You are the senior macro/markets analyst embedded inside the Ashford Capital Market Intelligence Terminal, an institutional-style trading dashboard covering gold, Indian equities (Nifty), US equities, US bonds/rates, and Bitcoin against a backdrop of Fed policy, inflation prints, yields, the dollar, oil and volatility.
-
-Your job is to read the SOURCE TEXT below and produce ONE strict JSON object that will be rendered directly into the terminal's dashboards. You are replacing a legacy keyword-matching parser that only extracted sentences \u2014 you must actually read, understand and SYNTHESIZE the text like a strategist writing a desk note, not copy sentences out of it.
-
-SOURCE (${sourceLabel}):
+  return `SOURCE (${sourceLabel}):
 """
 ${rawText.slice(0, 60000)}
 """${rawText.length > 60000 ? `\n(Source text was ${rawText.length.toLocaleString()} characters; only the first 60,000 were sent. If earlier sections matter more than later ones for this document, mention that below.)` : ''}
-${keyword ? `\nThe user is specifically researching: "${keyword}". Prioritize anything in the text relevant to that topic across every section below, but still populate any other section the text genuinely supports.\n` : ''}
+${keyword ? `\nThe user is specifically researching: "${keyword}". Prioritize anything in the text relevant to that topic, but still populate any other field the text genuinely supports.\n` : ''}`;
+}
+
+function buildCorePrompt(rawText, opts){
+  opts = opts || {};
+  return `You are the senior macro/markets analyst embedded inside the Ashford Capital Market Intelligence Terminal, an institutional-style trading dashboard covering gold, Indian equities (Nifty), US equities, US bonds/rates, and Bitcoin against a backdrop of Fed policy, inflation prints, yields, the dollar, oil and volatility.
+
+Your job right now is ONLY the macro/positioning board \u2014 read the SOURCE TEXT below and produce ONE strict JSON object covering "meta", "macro", "bias", "matrix" and "pos". A separate pass handles events/narratives/watchlist/today/summary, so don't worry about those here \u2014 put all your reasoning budget into this board only. You are replacing a legacy keyword-matching parser that only extracted sentences \u2014 actually read, understand and SYNTHESIZE the text like a strategist writing a desk note, not copy sentences out of it.
+
+${sourceBlock(rawText, opts)}
 ${schemaPromptBlock()}
 
 Return ONLY a single JSON object \u2014 no markdown fences, no headings, no commentary before or after it \u2014 matching EXACTLY this shape and these field meanings:
@@ -1592,9 +1645,38 @@ Return ONLY a single JSON object \u2014 no markdown fences, no headings, no comm
   },
   "pos": {
     "<each theme id above>": {"v":"short 1-4 word read, e.g. 'Risk-On'","tone":"bullish|bearish|neutral|macro|warning|none","src":"supporting excerpt"}
-  },
+  }
+}
+
+RULES \u2014 follow every one of these:
+1. Valid JSON only. No trailing commas, no markdown code fences, no text outside the JSON object.
+2. Every key shown above must be present, including empty ones \u2014 use "" for empty strings, null for unset numbers. Never omit a key.
+3. Never fabricate a number, date, quote, or fact. When genuinely unsure or unsupported by the text, leave the field empty rather than guessing.
+4. All "src" excerpts must be real, traceable to the supplied text, complete grammatical sentences (never cut off mid-word or mid-clause), under roughly 220 characters.
+5. Bias/tone/direction fields are YOUR analytical judgment inferred from the text's language \u2014 the source text will rarely state "bias: bullish" outright.
+6. For usBonds specifically: rising yields = bearish for bonds, falling yields = bullish for bonds (price/yield are inverse) \u2014 apply this convention when assessing bond bias/positioning.
+7. Keep this board internally consistent \u2014 if a macro figure or asset bias is populated, related "pos" reads must not contradict it.
+8. Scan for all five asset classes (Gold, Nifty, US Equities, US Bonds, Bitcoin) and all twelve macro indicators even if most end up empty \u2014 do not skip one just because it isn't the main topic.
+9. Number fields ("cf" confidence) must be real JSON numbers like 72, never numeric strings like "72", and never missing \u2014 use null only when genuinely no confidence can be assessed.
+10. If the source text is very short, unrelated to markets, or has almost nothing usable, it is correct to return a mostly-empty structure \u2014 do not pad it with invented content.
+11. Do not reason about events, narratives, the watchlist, today's focus, or a session summary \u2014 that's a separate pass and out of scope here. Keeping your reasoning scoped to this board only leaves plenty of budget to write it out in full.`;
+}
+
+function buildFlowPrompt(rawText, opts){
+  opts = opts || {};
+  const assetList = ASSET_DEFS.map(a=>a.label).join(', ');
+  return `You are the senior macro/markets analyst embedded inside the Ashford Capital Market Intelligence Terminal, an institutional-style trading dashboard covering gold, Indian equities (Nifty), US equities, US bonds/rates, and Bitcoin against a backdrop of Fed policy, inflation prints, yields, the dollar, oil and volatility.
+
+Your job right now is ONLY the events/narrative board \u2014 read the SOURCE TEXT below and produce ONE strict JSON object covering "events", "narratives", "watchlist", "today" and "summary". A separate pass handles the macro figures and per-asset bias, so don't worry about those here \u2014 put all your reasoning budget into this board only. You are replacing a legacy keyword-matching parser that only extracted sentences \u2014 actually read, understand and SYNTHESIZE the text like a strategist writing a desk note, not copy sentences out of it.
+
+${sourceBlock(rawText, opts)}
+ASSET LABELS \u2014 use these exact names (comma-separated when more than one applies) for every "aa" field: ${assetList}
+
+Return ONLY a single JSON object \u2014 no markdown fences, no headings, no commentary before or after it \u2014 matching EXACTLY this shape and these field meanings:
+
+{
   "events": [
-    {"cat":"Fed|Inflation|Central Bank|Energy|Geopolitics|Earnings|Growth|Employment|Trade|Other","t":"time if stated, e.g. '14:00 ET'","dt":"'Today'/'Overnight'/date/empty string","h":"one-sentence headline in your own words","w":"one-sentence why-it-matters in your own analytical words","aa":"comma-separated affected assets from Gold, Nifty, US Equities, US Bonds, Bitcoin, DXY, WTI, Brent","imp":"High|Medium|Low","src":"supporting excerpt"}
+    {"cat":"Fed|Inflation|Central Bank|Energy|Geopolitics|Earnings|Growth|Employment|Trade|Other","t":"time if stated, e.g. '14:00 ET'","dt":"'Today'/'Overnight'/date/empty string","h":"one-sentence headline in your own words","w":"one-sentence why-it-matters in your own analytical words","aa":"comma-separated affected assets","imp":"High|Medium|Low","src":"supporting excerpt"}
   ],
   "narratives": [
     {"n":"short narrative name e.g. 'Fed Pivot'","tone":"bullish|bearish|neutral|macro|warning","s":"integer 0-100 JSON number, strength you assess","aa":"comma-separated affected assets","src":"supporting excerpt"}
@@ -1612,44 +1694,44 @@ Return ONLY a single JSON object \u2014 no markdown fences, no headings, no comm
 
 RULES \u2014 follow every one of these:
 1. Valid JSON only. No trailing commas, no markdown code fences, no text outside the JSON object.
-2. Every key shown above must be present, including empty ones \u2014 use "" for empty strings, null for unset numbers, [] for empty lists. Never omit a key.
-3. Never fabricate a number, date, quote, or fact. When genuinely unsure or unsupported by the text, leave the field empty rather than guessing.
+2. Every key shown above must be present \u2014 use [] for a list with nothing genuinely usable. Never omit a key.
+3. Never fabricate a number, date, quote, or fact. When genuinely unsure or unsupported by the text, leave a field empty or omit that list item rather than guessing.
 4. All "src" excerpts must be real, traceable to the supplied text, complete grammatical sentences (never cut off mid-word or mid-clause), under roughly 220 characters.
-5. Bias/tone/direction fields are YOUR analytical judgment inferred from the text's language \u2014 the source text will rarely state "bias: bullish" outright.
-6. For usBonds specifically: rising yields = bearish for bonds, falling yields = bullish for bonds (price/yield are inverse) \u2014 apply this convention when assessing bond bias/positioning.
-7. Keep every section internally consistent \u2014 if a macro figure or asset bias is populated, related "pos" reads and "summary" bullets must not contradict it.
-8. Scan for all five asset classes (Gold, Nifty, US Equities, US Bonds, Bitcoin) and all twelve macro indicators even if most end up empty \u2014 do not skip a section just because it isn't the main topic.
-9. Number fields ("cf" confidence, "s" narrative strength) must be real JSON numbers like 72, never numeric strings like "72", and never missing \u2014 use null only when genuinely no confidence/strength can be assessed.
-10. If the source text is very short, unrelated to markets, or has almost nothing usable, it is correct to return a mostly-empty structure \u2014 do not pad it with invented content.`;
+5. Number fields ("s" narrative strength) must be real JSON numbers like 72, never numeric strings.
+6. Cap each list at the MOST significant items only, ranked by importance \u2014 at most 6 events, 6 narratives, 8 watchlist items, 5 "today" items. A shorter, higher-quality list beats a padded one; don't spend output budget on marginal items the dashboard will trim anyway.
+7. "summary.bullets" is capped at 8 \u2014 write 4 to 8, whichever the material actually supports.
+8. If the source text is very short, unrelated to markets, or has almost nothing usable, it is correct to return mostly-empty lists \u2014 do not pad them with invented content.`;
 }
 
 /* ==========================================================================
-   RESPONSE SCHEMA -- built from the same MACRO_DEFS / ASSET_DEFS /
-   POS_DEFS as buildGroqPrompt(), so the two can never drift apart. Used as
-   response_format:{type:'json_schema', json_schema:{strict:<bool>, ...}}
-   in summarizeWithGroq() with strict:false (best-effort) as the primary
-   mode: Groq treats this shape as strong guidance for every field/key name
-   -- which is the actual fix for data landing in the wrong dashboard card
-   -- without hard-rejecting the whole response when one field doesn't
-   cleanly fit, which matters here because most source text is pasted from
-   PDFs or plain-text files rather than hand-written to be tidy. strict:true
-   (pass jsonSchema.strict:true from a caller) gives a firmer guarantee via
-   constrained decoding when the source is clean, at the cost of Groq's
-   validator occasionally hard-rejecting real GPT-OSS responses outright
-   (console.groq.com community-reported, ~10% of requests as of mid-2026) --
-   which is why summarizeWithGroq() no longer defaults to it. Either way,
-   this schema does NOT guarantee the *content* is insightful, only that it
-   lands in the right place -- see buildGroqPrompt()'s RULES for that half.
+   RESPONSE SCHEMAS -- one per slice (see the PROMPTS comment above
+   buildCorePrompt() for why this file asks for two smaller structured
+   responses instead of one large one). Each is built from the same
+   MACRO_DEFS / ASSET_DEFS / POS_DEFS as its matching prompt, so schema and
+   prompt can't drift apart. Passed as response_format:{type:'json_schema',
+   json_schema:{strict:<bool>, ...}} by extractStructured() below, which
+   now tries strict:true FIRST: with strict:true, Groq uses constrained
+   decoding and guarantees schema-valid JSON on every response --
+   "Never errors or produces invalid JSON" per console.groq.com/docs/
+   structured-outputs -- and openai/gpt-oss-120b is one of the models that
+   supports it. This schema already satisfies strict mode's structural
+   requirements (every property required, additionalProperties:false
+   throughout, no minimum/maximum), so there's no longer a reason not to
+   try it first; extractStructured() still falls through to strict:false
+   then plain json_object mode if a particular call gets rejected, so
+   nothing regresses if strict mode has an off day for one request.
    ========================================================================== */
-function buildGroqResponseSchema(){
+function coreSchemaDefs(){
   const str = { type:'string' };
   // NOTE: deliberately NOT using minimum/maximum here. OpenAI-style
   // structured outputs (which Groq's strict mode follows) rejects the
   // entire schema if numeric bounds are present -- 0-100 is enforced by
   // the prompt's RULES text instead, same as every other soft constraint
-  // in this schema (dates, word counts, etc. aren't schema-enforceable either).
+  // in this schema (dates, word counts, list-length caps, etc. aren't
+  // schema-enforceable either -- see buildFlowPrompt()'s RULES for those).
   const numOrNull = { type:['integer','null'] };
-  const defs = {
+  return {
+    str, numOrNull,
     macroEntry: {
       type:'object',
       properties:{ cur:str, prev:str, cons:str, d:{type:'string', enum:['up','down','flat','na']}, note:str, src:str },
@@ -1671,19 +1753,33 @@ function buildGroqResponseSchema(){
       required:['v','tone','src'], additionalProperties:false
     }
   };
+}
+function buildCoreSchema(){
+  const d = coreSchemaDefs();
   const macroProps = {};  MACRO_DEFS.forEach(m=>{ macroProps[m.id]  = { '$ref':'#/$defs/macroEntry' }; });
   const biasProps = {};   ASSET_DEFS.forEach(a=>{ biasProps[a.id]   = { '$ref':'#/$defs/biasEntry' };  });
   const matrixProps = {}; ASSET_DEFS.forEach(a=>{ matrixProps[a.id] = { '$ref':'#/$defs/matrixEntry' };});
   const posProps = {};    POS_DEFS.forEach(p=>{   posProps[p.id]    = { '$ref':'#/$defs/posEntry' };   });
-
   return {
     type:'object',
     properties:{
-      meta:{ type:'object', properties:{ source:str, session:str, headline:str }, required:['source','session','headline'], additionalProperties:false },
+      meta:{ type:'object', properties:{ source:d.str, session:d.str, headline:d.str }, required:['source','session','headline'], additionalProperties:false },
       macro:{ type:'object', properties:macroProps, required:MACRO_DEFS.map(m=>m.id), additionalProperties:false },
       bias:{ type:'object', properties:biasProps, required:ASSET_DEFS.map(a=>a.id), additionalProperties:false },
       matrix:{ type:'object', properties:matrixProps, required:ASSET_DEFS.map(a=>a.id), additionalProperties:false },
-      pos:{ type:'object', properties:posProps, required:POS_DEFS.map(p=>p.id), additionalProperties:false },
+      pos:{ type:'object', properties:posProps, required:POS_DEFS.map(p=>p.id), additionalProperties:false }
+    },
+    required:['meta','macro','bias','matrix','pos'],
+    additionalProperties:false,
+    '$defs': { macroEntry:d.macroEntry, biasEntry:d.biasEntry, matrixEntry:d.matrixEntry, posEntry:d.posEntry }
+  };
+}
+function buildFlowSchema(){
+  const str = { type:'string' };
+  const numOrNull = { type:['integer','null'] };
+  return {
+    type:'object',
+    properties:{
       events:{ type:'array', items:{
         type:'object',
         properties:{ cat:{type:'string', enum:['Fed','Inflation','Central Bank','Energy','Geopolitics','Earnings','Growth','Employment','Trade','Other']}, t:str, dt:str, h:str, w:str, aa:str, imp:{type:'string', enum:['High','Medium','Low']}, src:str },
@@ -1706,9 +1802,8 @@ function buildGroqResponseSchema(){
       }},
       summary:{ type:'object', properties:{ bullets:{ type:'array', items:{type:'string'} } }, required:['bullets'], additionalProperties:false }
     },
-    required:['meta','macro','bias','matrix','pos','events','narratives','watchlist','today','summary'],
-    additionalProperties:false,
-    '$defs': defs
+    required:['events','narratives','watchlist','today','summary'],
+    additionalProperties:false
   };
 }
 
@@ -1748,6 +1843,14 @@ async function callGroq(messages, opts){
     // reasoning_effort ('low'|'medium'|'high') is only honored by the
     // GPT-OSS models this file defaults to -- harmless to send otherwise.
     if(opts.reasoningEffort) body.reasoning_effort = opts.reasoningEffort;
+    // GPT-OSS models put reasoning in a separate message.reasoning field by
+    // default (console.groq.com/docs/reasoning) -- those tokens are still
+    // generated and still count against max_completion_tokens even though
+    // this file never reads that field. Callers that don't want the model
+    // to reason at all (e.g. the plain chat assistant, where the question
+    // is usually simple and every token should go toward the visible
+    // answer) can pass includeReasoning:false to skip that spend entirely.
+    if(opts.includeReasoning === false) body.include_reasoning = false;
     let resp;
     try{
       resp = await fetch(CONFIG.GROQ_BASE, {
@@ -1818,42 +1921,108 @@ async function callGroq(messages, opts){
 function parseJsonLoose(text){
   let t = text.trim();
   if(t.startsWith('```')){ t = t.replace(/^```(json)?/i,'').replace(/```$/,'').trim(); }
-  return JSON.parse(t);
-}
-async function summarizeWithGroq(rawText, opts){
-  const prompt = buildGroqPrompt(rawText, opts);
-  const messages = [{ role:'user', content: prompt }];
-  const baseParams = { temperature:0.25, maxOutputTokens:16384, reasoningEffort:'medium' };
-  const schema = buildGroqResponseSchema();
   try{
-    // Primary attempt: best-effort schema mode (strict:false). Same schema
-    // as before, but Groq treats it as guidance instead of a hard
-    // constraint -- still steers each field into the right key for the
-    // dashboard cards, without rejecting the whole response outright when
-    // real-world source text (pasted, notepad .txt, or PDF-extracted) is
-    // messy or ambiguous enough that one field doesn't cleanly fit. This
-    // is deliberately the primary path, not strict:true, because most
-    // source text here comes from .txt/PDF uploads rather than tidy
-    // hand-written paste text -- see buildGroqResponseSchema() for why
-    // strict mode isn't a good fit for that as the primary path.
-    const text = await callGroq(messages, Object.assign({}, baseParams, {
-      jsonSchema: { name:'market_intelligence_extraction', schema, strict:false },
-      debugLabel:'summarize:flexible-schema'
-    }));
-    return parseJsonLoose(text);
-  }catch(schemaErr){
-    console.warn('Groq flexible-schema summarization failed, retrying in plain json_object mode:', schemaErr.message);
+    return JSON.parse(t);
+  }catch(firstErr){
+    // Best-effort/json_object mode -- and, per Groq community reports,
+    // GPT-OSS's json_schema mode occasionally too -- can wrap the JSON in a
+    // sentence of commentary despite the prompt saying not to. Salvage the
+    // first balanced {...} object in the text (tracking string state so a
+    // brace inside a quoted "src" excerpt doesn't throw off the count)
+    // before giving up and letting the caller fall back further.
+    const start = t.indexOf('{');
+    if(start === -1) throw firstErr;
+    let depth = 0, inStr = false, escaped = false;
+    for(let i = start; i < t.length; i++){
+      const c = t[i];
+      if(inStr){
+        if(escaped) escaped = false;
+        else if(c === '\\') escaped = true;
+        else if(c === '"') inStr = false;
+        continue;
+      }
+      if(c === '"') inStr = true;
+      else if(c === '{') depth++;
+      else if(c === '}'){
+        depth--;
+        if(depth === 0){
+          try{ return JSON.parse(t.slice(start, i+1)); }
+          catch(salvageErr){ throw firstErr; }
+        }
+      }
+    }
+    throw firstErr;
+  }
+}
+
+/* ---- Runs one schema-guided extraction with three successive fallbacks:
+   strict constrained decoding (strongest guarantee -- "never produces
+   invalid JSON" -- but only available on select models and can still
+   occasionally 400 per Groq's own docs), best-effort schema (same shape,
+   more forgiving), then plain json_object mode (valid JSON with no schema
+   at all) as the last safety net before the caller gives up on this slice
+   entirely. Each attempt gets its own console.warn so a real failure is
+   diagnosable from the browser console without guessing which tier broke. ---- */
+async function extractStructured(messages, schema, schemaName, paramOverrides){
+  const baseParams = Object.assign({ temperature:0.25, maxOutputTokens:12000, reasoningEffort:'low' }, paramOverrides);
+  const attempts = [
+    { jsonSchema:{ name:schemaName, schema, strict:true },  debugLabel:`${schemaName}:strict` },
+    { jsonSchema:{ name:schemaName, schema, strict:false }, debugLabel:`${schemaName}:flexible` },
+    { json:true,                                            debugLabel:`${schemaName}:json-object` },
+  ];
+  let lastErr;
+  for(const attempt of attempts){
     try{
-      const text = await callGroq(messages, Object.assign({}, baseParams, {
-        json:true,
-        debugLabel:'summarize:json-object-fallback'
-      }));
+      const text = await callGroq(messages, Object.assign({}, baseParams, attempt));
       return parseJsonLoose(text);
-    }catch(fallbackErr){
-      fallbackErr.message = `${fallbackErr.message} (flexible-schema attempt also failed first: ${schemaErr.message})`;
-      throw fallbackErr;
+    }catch(err){
+      console.warn(`Groq ${attempt.debugLabel} failed, trying next mode:`, err.message);
+      lastErr = err;
     }
   }
+  throw lastErr;
+}
+
+/* ============================================================
+   ORCHESTRATOR -- runs the core (macro/bias/matrix/pos) and flow
+   (events/narratives/watchlist/today/summary) slices in PARALLEL via
+   Promise.allSettled, then merges whichever succeeded into one raw object
+   with the same overall shape the rest of the pipeline (normalizeDataset
+   -> mergeWithPrevious -> renderAll) already expects and was already
+   verified to handle correctly when a section comes back empty --
+   normalizeDataset() defaults any missing d.macro/d.bias/d.events/etc to
+   {}/[] per-field, and mergeWithPrevious() only overwrites a field when
+   the fresh extraction actually found something for it. This only throws
+   -- triggering the local-parser fallback in handleNewIntelligence() --
+   if BOTH slices fail outright; a single slice failing just means that
+   half of the board keeps its previous values instead of the whole
+   update being discarded, which is a meaningfully better failure mode
+   than the single-call version this replaces.
+   ============================================================ */
+async function summarizeWithGroq(rawText, opts){
+  opts = opts || {};
+  const coreMessages = [{ role:'user', content: buildCorePrompt(rawText, opts) }];
+  const flowMessages = [{ role:'user', content: buildFlowPrompt(rawText, opts) }];
+
+  const [coreResult, flowResult] = await Promise.allSettled([
+    extractStructured(coreMessages, buildCoreSchema(), 'market_intelligence_core', { maxOutputTokens:12000 }),
+    extractStructured(flowMessages, buildFlowSchema(), 'market_intelligence_flow', { maxOutputTokens:10000 }),
+  ]);
+
+  if(coreResult.status === 'rejected' && flowResult.status === 'rejected'){
+    throw new Error(`Macro/bias board: ${coreResult.reason.message} | Events/summary board: ${flowResult.reason.message}`);
+  }
+  if(coreResult.status === 'rejected'){
+    console.warn('Groq macro/bias/positioning slice failed -- that half of the board will keep its previous values:', coreResult.reason);
+  }
+  if(flowResult.status === 'rejected'){
+    console.warn('Groq events/narratives/watchlist/summary slice failed -- that half of the board will keep its previous values:', flowResult.reason);
+  }
+  return Object.assign(
+    {},
+    coreResult.status === 'fulfilled' ? coreResult.value : {},
+    flowResult.status === 'fulfilled' ? flowResult.value : {}
+  );
 }
 
 /* ==========================================================================
@@ -2139,7 +2308,11 @@ async function sendChatMessage(text){
       { role:'system', content: systemPrompt },
       ...chatHistory.slice(-16).map(m=>({ role: m.role==='user'?'user':'assistant', content: m.text }))
     ];
-    const reply = await callGroq(messages, { temperature:0.4, maxOutputTokens:1024 });
+    // includeReasoning:false: this is simple Q&A about what's already on
+    // screen, not a task that benefits from chain-of-thought -- skipping it
+    // means the full 1024-token budget goes to the visible answer instead
+    // of competing with a hidden reasoning pass (see callGroq()'s comment).
+    const reply = await callGroq(messages, { temperature:0.4, maxOutputTokens:1024, includeReasoning:false });
     chatHistory.push({role:'model', text:reply});
   }catch(err){
     console.error(err);
