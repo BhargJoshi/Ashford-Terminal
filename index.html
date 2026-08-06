@@ -754,9 +754,23 @@ const POS_DEFS = [
 const CONFIG = {
   NEWS_API_KEY:   '2984934cdf28477fb4eccee3bdf6d197',
   NEWS_API_BASE:  'https://newsapi.org/v2',
-  GROQ_API_KEY:   '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',
+  GROQ_API_KEY:   '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',
   GROQ_MODEL:     'openai/gpt-oss-120b', // swap to 'openai/gpt-oss-20b' for a faster/cheaper option
   GROQ_BASE:      'https://api.groq.com/openai/v1/chat/completions',
+  // How much pasted/uploaded source text gets sent to Groq per extraction
+  // call, in characters (~4 chars/token). This used to be 60,000 (~15,000
+  // tokens) -- fine against a large context window, but Groq's PUBLISHED
+  // free-tier limit for this model is only ~8,000 TOKENS PER MINUTE
+  // (console.groq.com/docs/rate-limits, console.groq.com/settings/limits
+  // shows the live number for this account) -- a single call anywhere near
+  // 15,000 input tokens is rejected with a 429 before generation even
+  // starts, on that tier, regardless of prompt/schema quality. 10,000 chars
+  // (~2,500 tokens) leaves realistic room alongside this file's own
+  // instructions/schema overhead (~1,500-2,100 tokens/call, measured) and a
+  // 2,500-3,000 token output ceiling. callGroqExtraction() below shrinks
+  // this further at runtime, automatically, if this account's Groq responses
+  // reveal an even tighter budget (see groqRateLimitInfo).
+  SOURCE_TEXT_CHAR_CAP: 10000,
 };
 
 /* ============================================================
@@ -768,7 +782,8 @@ let isParsing = false;
 let lastUpdatedAt = null; // Date
 let lastFoundCount = null; // how many fields/sections the last parse actually found
 let lastEngine = null;     // 'groq' | 'local' | null — which extraction path produced the current dataset
-let lastPartialWarning = null; // set by summarizeWithGroq() when one of its two parallel calls fails but the other succeeds
+let lastPartialWarning = null; // set by summarizeWithGroq() when one of its two sequential calls fails but the other succeeds
+let groqRateLimitInfo = { limitTokens:null, remainingTokens:null, updatedAt:null }; // this Groq account's real per-minute token budget for GROQ_MODEL, learned from response headers/429 bodies at runtime -- see callGroqExtraction()
 
 const watchlistState = { query:'', imp:'', sortKey:null, sortDir:'asc' };
 const macroTableState = { query:'', sortKey:null, sortDir:'asc' };
@@ -1548,9 +1563,34 @@ function extractIntelligenceLocal(rawText){
    argument), each at reasoning_effort:'low' instead of 'medium' so
    reasoning can't eat the whole budget, each with a 3-step fallback
    cascade (strict schema → best-effort schema → plain json_object with
-   salvage-parsing of a balanced {...} block), run via Promise.allSettled
-   so one half failing doesn't have to sink the other. See
+   salvage-parsing of a balanced {...} block), independently so one half
+   failing doesn't have to sink the other (see the ADDENDUM below for why
+   this later changed from parallel to sequential). See
    summarizeWithGroq() / callGroqExtraction() below.
+
+   ADDENDUM — this still wasn't enough on its own, because it addressed
+   the OUTPUT side of the token budget but not the INPUT side. Groq
+   publishes real per-minute token limits per model, and for
+   openai/gpt-oss-120b the commonly-reported free-tier number is only
+   ~6,000-8,000 TOKENS PER MINUTE (console.groq.com/docs/rate-limits;
+   console.groq.com/settings/limits shows the live number for a given
+   account) — a single call sending the old 60,000-character source-text
+   cap (~15,000 tokens) plus this file's own prompt/schema instructions
+   (~1,500-2,100 tokens, measured) exceeds that limit BY ITSELF, before a
+   single output token is requested, and gets a 429 rejected outright.
+   Two PARALLEL calls each sending a large slice of the same source text
+   made this worse, not better, since both compete for the same
+   per-account, per-model rolling budget at once. This is a plausible,
+   evidence-based explanation for why the file kept falling back to the
+   local parser even after the reasoning-budget fix above; it may not be
+   the only remaining factor, which is why callGroq() now reads Groq's
+   x-ratelimit-* response headers on every call and callGroqExtraction()
+   sizes its source-text slice against this account's ACTUAL discovered
+   budget (see CONFIG.SOURCE_TEXT_CHAR_CAP and groqRateLimitInfo) instead
+   of a fixed guess — and why handleNewIntelligence()'s fallback banner
+   now shows the real underlying error text (not just "Groq was
+   unavailable") so the next failure, if any, is diagnosable from the UI
+   alone, without opening the browser console.
    ========================================================================== */
 function loadScript(src){
   return new Promise((resolve, reject)=>{
@@ -1592,22 +1632,23 @@ ASSET IDS \u2014 use exactly these keys under "bias" and "matrix": ${assetIds}
 POSITIONING THEME IDS \u2014 use exactly these keys under "pos": ${posIds}`;
 }
 
-function buildGroqPrompt(rawText, opts, part){
+function buildGroqPrompt(rawText, opts, part, maxChars){
   opts = opts || {};
   const keyword = opts.keyword || '';
   const sourceLabel = opts.sourceLabel || 'Pasted market intelligence text';
+  const cap = maxChars || CONFIG.SOURCE_TEXT_CHAR_CAP;
 
   const sourceBlock = `SOURCE (${sourceLabel}):
 """
-${rawText.slice(0, 60000)}
-"""${rawText.length > 60000 ? `\n(Source text was ${rawText.length.toLocaleString()} characters; only the first 60,000 were sent. If earlier sections matter more than later ones for this document, mention that below.)` : ''}
+${rawText.slice(0, cap)}
+"""${rawText.length > cap ? `\n(Source text was ${rawText.length.toLocaleString()} characters; only the first ${cap.toLocaleString()} were sent -- Groq's per-minute token budget on this account can't fit more right now. If earlier sections matter more than later ones for this document, mention that below.)` : ''}
 ${keyword ? `\nThe user is specifically researching: "${keyword}". Prioritize anything in the text relevant to that topic across every section below, but still populate any other section the text genuinely supports.\n` : ''}`;
 
   const intro = `You are the senior macro/markets analyst embedded inside the Ashford Capital Market Intelligence Terminal, an institutional-style trading dashboard covering gold, Indian equities (Nifty), US equities, US bonds/rates, and Bitcoin against a backdrop of Fed policy, inflation prints, yields, the dollar, oil and volatility.
 
 Your job is to read the SOURCE TEXT below and produce ONE strict JSON object that will be rendered directly into the terminal's dashboards. You are replacing a legacy keyword-matching parser that only extracted sentences \u2014 you must actually read, understand and SYNTHESIZE the text like a strategist writing a desk note, not copy sentences out of it.
 
-This request covers ${part==='macro' ? 'HALF 1 of 2' : 'HALF 2 of 2'} of the dashboard's data (a separate parallel request covers the other half from the same source text) \u2014 here you only produce ${part==='macro' ? 'the macro readings, per-asset bias, the bull/bear driver matrix, and cross-market positioning theme reads' : 'market-moving events, active narratives, the forward watchlist, today\u2019s specific catalysts, and the session summary'}. Do not try to also cover the other half's fields; they aren't in the shape below and won't be used.`;
+This request covers ${part==='macro' ? 'HALF 1 of 2' : 'HALF 2 of 2'} of the dashboard's data (a separate request covers the other half from the same source text) \u2014 here you only produce ${part==='macro' ? 'the macro readings, per-asset bias, the bull/bear driver matrix, and cross-market positioning theme reads' : 'market-moving events, active narratives, the forward watchlist, today\u2019s specific catalysts, and the session summary'}. Do not try to also cover the other half's fields; they aren't in the shape below and won't be used.`;
 
   if(part === 'macro'){
     return `${intro}
@@ -1799,6 +1840,30 @@ function isLikelyValidGroqKeyFormat(key){
    Gemini fallback chain (callGeminiInteractions + callGeminiGenerateContent)
    with a single path, since Groq doesn't have that legacy/new split --
    every model is served from the one /chat/completions endpoint. ---- */
+/* Groq exposes this account's REAL per-minute token budget for GROQ_MODEL on
+   every response (even successful ones) via x-ratelimit-* headers, and
+   spells out the exact numbers in 429 error bodies ("Limit 8000 * Used 7660
+   * Requested 1524 ..."). Reading both means callGroqExtraction() can size
+   requests to this account's ACTUAL tier at runtime instead of guessing --
+   see console.groq.com/docs/rate-limits. */
+function readGroqRateLimitHeaders(resp){
+  try{
+    const lim = resp.headers && resp.headers.get && resp.headers.get('x-ratelimit-limit-tokens');
+    const rem = resp.headers && resp.headers.get && resp.headers.get('x-ratelimit-remaining-tokens');
+    if(lim != null){
+      groqRateLimitInfo = {
+        limitTokens: parseInt(lim,10) || groqRateLimitInfo.limitTokens,
+        remainingTokens: rem != null ? (parseInt(rem,10) || 0) : groqRateLimitInfo.remainingTokens,
+        updatedAt: Date.now()
+      };
+    }
+  }catch(e){ /* header access failing shouldn't break the actual request */ }
+}
+function parseRateLimitFromMessage(msg){
+  const m = /limit[^\d]*(\d[\d,]*)[^\d]+used[^\d]*(\d[\d,]*)[^\d]+requested[^\d]*(\d[\d,]*)/i.exec(msg || '');
+  if(!m) return null;
+  return { limit:parseInt(m[1].replace(/,/g,''),10), used:parseInt(m[2].replace(/,/g,''),10), requested:parseInt(m[3].replace(/,/g,''),10) };
+}
 async function callGroq(messages, opts){
   opts = opts || {};
   const controller = new AbortController();
@@ -1835,6 +1900,7 @@ async function callGroq(messages, opts){
       if(networkErr.name==='AbortError') throw new Error('Groq request timed out.');
       throw new Error('Could not reach Groq from the browser -- check your connection.');
     }
+    readGroqRateLimitHeaders(resp);
     if(!resp.ok){
       let detail = '', code = '', failedGen = '';
       try{
@@ -1850,7 +1916,15 @@ async function callGroq(messages, opts){
         throw new Error(`Groq model "${CONFIG.GROQ_MODEL}" wasn't found (404)${detail ? ': '+detail : ''} -- it may have been deprecated. Check console.groq.com/docs/models for current model IDs.`);
       }
       if(resp.status === 429){
-        throw new Error(`Groq rate limit hit (429)${detail ? ': '+detail : ''} -- wait a moment and try again, or check console.groq.com for your current limits.`);
+        const parsed = parseRateLimitFromMessage(detail);
+        const retryAfterHeader = resp.headers && resp.headers.get && resp.headers.get('retry-after');
+        if(parsed){
+          groqRateLimitInfo = { limitTokens:parsed.limit, remainingTokens:Math.max(0, parsed.limit-parsed.used), updatedAt:Date.now() };
+        }
+        const err = new Error(`Groq rate limit hit (429)${detail ? ': '+detail : ''}${retryAfterHeader ? ` -- retry in ~${retryAfterHeader}s` : ''} -- see console.groq.com/settings/limits for this account's current per-minute budget for ${CONFIG.GROQ_MODEL}.`);
+        err.rateLimitInfo = parsed;
+        err.retryAfterSeconds = retryAfterHeader ? parseFloat(retryAfterHeader) : null;
+        throw err;
       }
       if(resp.status === 400 && code === 'json_validate_failed'){
         if(opts.debugLabel) console.debug(`[Groq:${opts.debugLabel}] json_validate_failed, failed_generation:`, failedGen);
@@ -1934,23 +2008,49 @@ function extractJsonObject(text){
 /* Runs the 3-step fallback cascade for ONE half ("board") of the schema:
    strict schema -> best-effort schema -> plain json_object (+ salvage
    parsing). Throws only if all three attempts for THIS half fail --
-   summarizeWithGroq() below runs both halves in parallel and treats them
-   independently, so one half failing doesn't have to sink the other. */
+   summarizeWithGroq() below runs both halves sequentially and treats them
+   independently, so one half failing doesn't have to sink the other.
+
+   Also sizes itself against this Groq account's REAL per-minute token
+   budget instead of a fixed guess: fixedOverheadTokens below is this
+   board's own prompt+schema size (measured directly from
+   buildGroqPrompt()/buildGroqResponseSchema() with empty source text -- see
+   the CONFIG.SOURCE_TEXT_CHAR_CAP comment for the numbers and why this
+   matters). If groqRateLimitInfo already knows this account's limit is
+   tighter than CONFIG.SOURCE_TEXT_CHAR_CAP assumes, sizeSourceCap() shrinks
+   the source text BEFORE the first attempt; if the first attempt still
+   comes back rate-limited, it shrinks again using the limit Groq just
+   reported and retries, instead of reusing the same oversized request two
+   more times (which would just get rate-limited again). */
 async function callGroqExtraction(rawText, opts, part){
-  const prompt = buildGroqPrompt(rawText, opts, part);
-  const messages = [{ role:'user', content: prompt }];
   const schema = buildGroqResponseSchema(part);
   const label = part==='macro' ? 'macro/bias/positioning' : 'events/narrative/summary';
-  // maxOutputTokens/reasoningEffort: each half now asks for roughly half the
-  // old ~150-field schema, at 'low' instead of 'medium' reasoning effort, so
-  // reasoning has much less to chew on and can't as easily eat the whole
-  // completion budget before any visible JSON gets written -- see the
-  // root-cause comment above the "AI-POWERED EXTRACTION" header for why that
-  // was silently causing every summarization to fall back to the local
-  // parser. includeReasoning:false trims the (unused, here) reasoning field
-  // out of the response payload -- harmless either way, a small win if it
-  // also shortens generation.
-  const baseParams = { temperature:0.25, maxOutputTokens:12000, reasoningEffort:'low', includeReasoning:false };
+  const outputCeiling = part==='macro' ? 3000 : 2500; // realistic ceiling for a low-reasoning-effort call at this schema size, not a padded "just in case" number -- a padded max_completion_tokens directly increases 429 risk because Groq's rate limiter admits/rejects against the REQUESTED ceiling, not actual usage
+  const fixedOverheadTokens = part==='macro' ? 2100 : 1650; // measured buildGroqPrompt(part)+buildGroqResponseSchema(part) size with empty source text, rounded up
+
+  function sizeSourceCap(){
+    let cap = CONFIG.SOURCE_TEXT_CHAR_CAP;
+    if(groqRateLimitInfo.limitTokens){
+      const availableTokens = Math.max(300, groqRateLimitInfo.limitTokens - fixedOverheadTokens - outputCeiling);
+      cap = Math.min(cap, availableTokens * 4); // ~4 chars/token, sizing-only estimate
+    }
+    return cap;
+  }
+
+  const baseParams = { temperature:0.25, maxOutputTokens:outputCeiling, reasoningEffort:'low', includeReasoning:false };
+
+  async function tryOnce(mode, sourceCap){
+    const prompt = buildGroqPrompt(rawText, opts, part, sourceCap);
+    const messages = [{ role:'user', content: prompt }];
+    const callOpts = Object.assign({}, baseParams, { debugLabel:`${label}:${mode}:cap${sourceCap}` });
+    if(mode === 'strict') callOpts.jsonSchema = { name:`market_intel_${part}`, schema, strict:true };
+    else if(mode === 'flexible') callOpts.jsonSchema = { name:`market_intel_${part}`, schema, strict:false };
+    else callOpts.json = true;
+    const text = await callGroq(messages, callOpts);
+    return extractJsonObject(text);
+  }
+
+  let sourceCap = sizeSourceCap();
 
   // Attempt 1 -- strict schema (constrained decoding). Groq documents
   // strict:true as fully supported and schema-guaranteed for gpt-oss-120b,
@@ -1961,36 +2061,35 @@ async function callGroqExtraction(rawText, opts, part){
   // an intermittent ~10% failure rate on this path, so it's an opportunistic
   // first attempt, not the only one.
   try{
-    const text = await callGroq(messages, Object.assign({}, baseParams, {
-      jsonSchema: { name:`market_intel_${part}`, schema, strict:true },
-      debugLabel:`${label}:strict`
-    }));
-    return extractJsonObject(text);
+    return await tryOnce('strict', sourceCap);
   }catch(strictErr){
     console.warn(`Groq strict-schema ${label} extraction failed, retrying best-effort schema:`, strictErr.message);
+    if(strictErr.rateLimitInfo){
+      const adjusted = sizeSourceCap();
+      if(adjusted < sourceCap){
+        console.warn(`Groq reports a ~${strictErr.rateLimitInfo.limit}-token/min budget for ${CONFIG.GROQ_MODEL} on this account; shrinking ${label} source text from ~${sourceCap} to ~${adjusted} characters before retrying.`);
+        sourceCap = adjusted;
+      }
+    }
     // Attempt 2 -- best-effort schema (strict:false). Groq treats the shape
     // as guidance rather than a hard constraint, so a single odd field can't
     // reject the whole response -- matters here since most source text is
     // pasted from PDFs/notepad .txt rather than hand-written to be tidy.
     try{
-      const text = await callGroq(messages, Object.assign({}, baseParams, {
-        jsonSchema: { name:`market_intel_${part}`, schema, strict:false },
-        debugLabel:`${label}:flexible`
-      }));
-      return extractJsonObject(text);
+      return await tryOnce('flexible', sourceCap);
     }catch(flexErr){
       console.warn(`Groq best-effort-schema ${label} extraction failed, retrying plain json_object mode:`, flexErr.message);
+      if(flexErr.rateLimitInfo){
+        const adjusted = sizeSourceCap();
+        if(adjusted < sourceCap) sourceCap = adjusted;
+      }
       // Attempt 3 -- plain JSON object mode + salvage parsing. Covers GPT-OSS
       // occasionally ignoring response_format entirely and returning
       // free-form prose (community.groq.com/t/structured-outputs-ignored-by-
       // openai-gpt-oss-120b/687) -- extractJsonObject() pulls the first
       // balanced {...} block out of whatever text comes back.
       try{
-        const text = await callGroq(messages, Object.assign({}, baseParams, {
-          json:true,
-          debugLabel:`${label}:json-object-fallback`
-        }));
-        return extractJsonObject(text);
+        return await tryOnce('json_object', sourceCap);
       }catch(jsonErr){
         jsonErr.message = `${jsonErr.message} (strict attempt: ${strictErr.message}; best-effort attempt: ${flexErr.message})`;
         throw jsonErr;
@@ -1999,41 +2098,52 @@ async function callGroqExtraction(rawText, opts, part){
   }
 }
 
-/* Orchestrates both halves in parallel and combines whatever comes back.
+/* Orchestrates both halves SEQUENTIALLY (not in parallel) and combines
+   whatever comes back. This used to be Promise.allSettled-parallel, but
+   that meant Groq's rate limiter had to admit BOTH calls' worst-case
+   token reservations at the same instant, competing for the same shared
+   per-minute budget on this account (see the ADDENDUM in the big comment
+   above "AI-POWERED EXTRACTION" -- the two calls' combined fixed+output
+   floor alone, ~9,250 tokens, already exceeds the commonly-reported
+   ~8,000 TPM free-tier ceiling for this model before a single character
+   of source text is added). Running the events call AFTER the macro call
+   finishes means it's admitted against macro's ACTUAL usage (normally
+   well under its ceiling, especially at reasoning_effort:'low') instead
+   of macro's worst-case reservation, and it immediately benefits from
+   whatever groqRateLimitInfo just learned from macro's response headers
+   when sizing its own source-text slice.
+
    Only throws (triggering the caller's local-parser fallback) if BOTH
-   halves fail -- a single half failing still returns real Groq data for the
-   other half; normalizeDataset()/mergeWithPrevious() already know how to
-   keep a section's previous values when fresh data for it is missing, so a
-   partial Groq result degrades gracefully instead of being treated as a
-   total failure. lastPartialWarning (state, declared near the top of the
-   file) is set so the caller can surface a specific, honest message instead
-   of silently pretending the whole update was clean. */
+   halves fail -- a single half failing still returns real Groq data for
+   the other half; normalizeDataset()/mergeWithPrevious() already know how
+   to keep a section's previous values when fresh data for it is missing,
+   so a partial Groq result degrades gracefully instead of being treated
+   as a total failure. lastPartialWarning (state, declared near the top of
+   the file) is set so the caller can surface a specific, honest message
+   instead of silently pretending the whole update was clean. */
 async function summarizeWithGroq(rawText, opts){
   lastPartialWarning = null;
-  const [macroResult, eventsResult] = await Promise.allSettled([
-    callGroqExtraction(rawText, opts, 'macro'),
-    callGroqExtraction(rawText, opts, 'events')
-  ]);
+  const results = {}, errors = {};
+  for(const part of ['macro','events']){
+    try{
+      results[part] = await callGroqExtraction(rawText, opts, part);
+    }catch(e){
+      errors[part] = e;
+      console.warn(`Groq ${part==='macro'?'macro/bias/positioning':'events/narrative/summary'} extraction failed; that half keeps its previous values:`, e);
+    }
+  }
 
-  if(macroResult.status === 'rejected' && eventsResult.status === 'rejected'){
-    throw new Error(`macro/bias/positioning half: ${macroResult.reason.message} \u2014 events/narrative/summary half: ${eventsResult.reason.message}`);
+  if(errors.macro && errors.events){
+    throw new Error(`macro/bias/positioning half: ${errors.macro.message} \u2014 events/narrative/summary half: ${errors.events.message}`);
   }
 
   const combined = {};
-  if(macroResult.status === 'fulfilled'){
-    Object.assign(combined, macroResult.value);
-  } else {
-    console.warn('Groq macro/bias/positioning extraction failed; that half keeps its previous values:', macroResult.reason);
-  }
-  if(eventsResult.status === 'fulfilled'){
-    Object.assign(combined, eventsResult.value);
-  } else {
-    console.warn('Groq events/narrative/summary extraction failed; that half keeps its previous values:', eventsResult.reason);
-  }
+  if(results.macro) Object.assign(combined, results.macro);
+  if(results.events) Object.assign(combined, results.events);
 
-  if(macroResult.status === 'rejected' || eventsResult.status === 'rejected'){
-    const failedLabel = macroResult.status==='rejected' ? 'macro readings / asset bias / positioning' : 'events / narratives / watchlist / session summary';
-    const reason = macroResult.status==='rejected' ? macroResult.reason.message : eventsResult.reason.message;
+  if(errors.macro || errors.events){
+    const failedLabel = errors.macro ? 'macro readings / asset bias / positioning' : 'events / narratives / watchlist / session summary';
+    const reason = errors.macro ? errors.macro.message : errors.events.message;
     lastPartialWarning = `Groq updated part of the dashboard, but the ${failedLabel} half failed and kept its previous values (${reason})`;
   }
 
@@ -2971,6 +3081,7 @@ async function handleNewIntelligence(rawText, opts){
   renderStatusPills();
   $('#retryBtn').classList.add('spin');
   let usedFallback = false;
+  let groqFailureReason = null;
   try{
     let rawExtracted;
     try{
@@ -2978,6 +3089,7 @@ async function handleNewIntelligence(rawText, opts){
     }catch(groqErr){
       console.warn('Groq summarization failed, falling back to the local parser', groqErr);
       usedFallback = true;
+      groqFailureReason = (groqErr && groqErr.message) || 'unknown error';
       await new Promise(r=>setTimeout(r, 150)); // keep the "Parsing…" state perceptible
       rawExtracted = extractIntelligenceLocal(rawText);
     }
@@ -2985,7 +3097,7 @@ async function handleNewIntelligence(rawText, opts){
     const { data, foundCount } = mergeWithPrevious(fresh, dataset);
     if(foundCount === 0){
       showError(usedFallback
-        ? 'Groq was unavailable and the local backup parser couldn\u2019t find recognizable market intelligence either — try different text.'
+        ? `Groq was unavailable (${groqFailureReason}) and the local backup parser couldn\u2019t find recognizable market intelligence either — try different text.`
         : 'Couldn\u2019t find any recognizable market intelligence in that text — try pasting a fuller excerpt.');
     } else {
       dataset = data;
@@ -3000,7 +3112,7 @@ async function handleNewIntelligence(rawText, opts){
         $('#pasteZone').style.height = '';
       }
       if(usedFallback){
-        showError('Groq summarization was unavailable, so this update used the local backup parser instead — figures may be less nuanced than usual.', 'warn');
+        showError(`Groq summarization was unavailable, so this update used the local backup parser instead (figures may be less nuanced than usual). Reason: ${groqFailureReason}`, 'warn');
       } else if(lastPartialWarning){
         showError(lastPartialWarning, 'warn');
       }
