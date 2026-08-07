@@ -473,7 +473,18 @@ button{ font-family:inherit; }
 .search-synthesis-item{ font-size:12.5px; line-height:1.65; color:var(--text-dim); padding:8px 0; border-bottom:1px solid var(--border-soft); }
 .search-synthesis-item:last-child{ border-bottom:none; }
 .search-applied-note{ display:flex; align-items:center; gap:7px; font-size:11px; color:var(--bull); background:var(--bull-dim); border:1px solid rgba(47,191,113,0.3); border-radius:var(--radius); padding:7px 10px; margin-bottom:14px; }
-.search-article{ border:1px solid var(--border-soft); border-radius:var(--radius); padding:11px 13px; margin-bottom:8px; background:var(--bg-inset); }
+.search-applied-note--error{ color:var(--bear); background:var(--bear-dim); border-color:rgba(242,69,61,0.3); }
+.search-select-bar{ display:flex; align-items:center; gap:12px; padding:9px 11px; margin-bottom:14px; border:1px solid var(--border-soft); border-radius:var(--radius); background:var(--bg-inset); }
+.search-select-all{ display:flex; align-items:center; gap:6px; font-size:11.5px; color:var(--text-dim); cursor:pointer; user-select:none; white-space:nowrap; }
+.search-select-all input{ accent-color:var(--macro); cursor:pointer; }
+.search-select-count{ font-size:11px; color:var(--text-faint); flex:1; }
+.btn:disabled{ opacity:0.4; cursor:not-allowed; border-color:var(--border); color:var(--text-dim); }
+.btn:disabled:hover{ border-color:var(--border); color:var(--text-dim); }
+.search-article{ display:flex; align-items:flex-start; gap:10px; border:1px solid var(--border-soft); border-radius:var(--radius); padding:11px 13px; margin-bottom:8px; background:var(--bg-inset); transition:border-color .15s ease, background .15s ease; }
+.search-article--selected{ border-color:var(--macro); background:var(--macro-dim); }
+.search-article-check{ flex:0 0 auto; padding-top:2px; cursor:pointer; }
+.search-article-check input{ width:15px; height:15px; cursor:pointer; accent-color:var(--macro); }
+.search-article-body{ flex:1; min-width:0; }
 .search-article-top{ display:flex; align-items:baseline; justify-content:space-between; gap:10px; margin-bottom:5px; flex-wrap:wrap; }
 .search-article-source{ font-size:10px; font-weight:600; letter-spacing:0.4px; text-transform:uppercase; color:var(--macro); }
 .search-article-time{ font-size:10px; color:var(--text-faint); white-space:nowrap; }
@@ -657,7 +668,7 @@ button{ font-family:inherit; }
       <button class="detail-close" id="searchClose" aria-label="Close search">×</button>
     </div>
     <div class="search-modal-body" id="searchModalBody">
-      <div class="search-idle">Search any keyword — an asset, a ticker, a central bank, an event, anything — to pull the latest live news on it, synthesize it, and load anything relevant straight into the boards below.</div>
+      <div class="search-idle">Search any keyword — an asset, a ticker, a central bank, an event, anything — to pull the latest finance, markets, and geopolitics coverage on it. Pick the articles you want and add them to the terminal to summarize and load into the boards below.</div>
     </div>
   </div>
 </div>
@@ -766,6 +777,13 @@ const POS_DEFS = [
 const CONFIG = {
   NEWS_API_KEY:   'pub_86e14d4a7b0f4f52b4356b98e57b98d5',
   NEWS_API_BASE:  'https://newsdata.io/api/1',
+  // Keeps the live feed scoped to this terminal's domain -- newsdata.io has
+  // no dedicated "finance" category, "business" is the closest official
+  // one; "politics" is added for market-moving geopolitics. This is a
+  // coarse pre-filter only -- isMarketsRelevant() below does the real
+  // enforcement via keyword matching, since "business" tagging alone still
+  // lets through routine corporate PR that isn't market-moving news.
+  NEWS_CATEGORY:  'business,politics',
   GROQ_API_KEY:   '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',
   GROQ_MODEL:     'openai/gpt-oss-120b', // swap to 'openai/gpt-oss-20b' for a faster/cheaper option
   GROQ_BASE:      'https://api.groq.com/openai/v1/chat/completions',
@@ -2173,7 +2191,48 @@ async function summarizeWithGroq(rawText, opts){
    keeps consuming the same {source:{name}, title, description, content,
    url, publishedAt} shape NewsAPI.org used to provide, so none of that
    downstream logic changed.
+
+   DOMAIN FILTER -- this terminal is finance/markets-only by design, so the
+   feed is filtered in two layers rather than trusting either alone:
+   1. CONFIG.NEWS_CATEGORY narrows the candidate pool at the API level.
+      newsdata.io's fixed category taxonomy has no dedicated "finance"
+      category (confirmed against their docs) -- "business" is the closest
+      official one, "politics" is added for the geopolitics angle.
+   2. isMarketsRelevant() then re-checks every article's title+description
+      against a curated finance/markets/macro/geopolitics keyword list and
+      drops anything that doesn't match. This is the layer that actually
+      enforces "no unrelated news" -- aggregator category tagging alone is
+      broad enough that "business" still lets through routine corporate PR,
+      product announcements, etc. that aren't really market-moving.
    ========================================================================== */
+const MARKETS_RELEVANCE_KEYWORDS = [
+  // markets & trading
+  'stock','stocks','share price','shares','equity','equities','market','markets',
+  'trading','trader','traders','investor','investors','investment','hedge fund',
+  'index fund','indices','nasdaq','dow jones','s&p','sensex','nifty','ftse','nikkei',
+  'bond','bonds','yield','treasury','treasuries','ipo','earnings','revenue guidance',
+  'quarterly results','profit','dividend','merger','acquisition','buyback','valuation',
+  'rally','sell-off','selloff','bear market','bull market','volatility','vix',
+  'commodities','commodity','gold price','oil price','crude','wti','brent',
+  'forex','currency','exchange rate','dollar','yuan','rupee','euro','pound sterling',
+  'cryptocurrency','crypto','bitcoin','ethereum',' sec ','nyse',' wall street',
+  'dalal street','stock exchange','credit rating','downgrade','upgrade',
+  'bankruptcy','default on debt','listing','delisting','stake sale',
+  // macro & central banks
+  'inflation','cpi','ppi','gdp','recession','interest rate','rate cut',
+  'rate hike','federal reserve',' the fed','central bank','rbi ','ecb ','boj ',
+  'monetary policy','fiscal policy','unemployment rate','jobs report','payrolls',
+  'economic growth','global economy','trade deficit','trade war','tariff','tariffs',
+  'supply chain','budget deficit','national debt','fomc',
+  // geopolitics with market impact
+  'sanctions','opec','oil supply','trade agreement','trade deal','embargo',
+  'geopolitical','export ban','import ban','g7 summit','g20 summit','trade talks',
+  'ceasefire','oil embargo','energy crisis',
+];
+function isMarketsRelevant(article){
+  const text = ` ${(article.title||'')} ${(article.description||'')} `.toLowerCase();
+  return MARKETS_RELEVANCE_KEYWORDS.some(k => text.includes(k));
+}
 function mapNewsdataArticle(raw){
   raw = raw || {};
   let publishedAt = '';
@@ -2198,7 +2257,8 @@ async function fetchLiveNews(keyword){
   // newsdata.io's free plan caps the q= search string at 100 characters;
   // real search terms here are a few words, but guard it defensively.
   const q = encodeURIComponent((keyword||'').slice(0, 100));
-  const url = `${CONFIG.NEWS_API_BASE}/latest?apikey=${CONFIG.NEWS_API_KEY}&q=${q}&language=en&size=10`;
+  const category = encodeURIComponent(CONFIG.NEWS_CATEGORY);
+  const url = `${CONFIG.NEWS_API_BASE}/latest?apikey=${CONFIG.NEWS_API_KEY}&q=${q}&category=${category}&language=en&size=10`;
   let resp;
   try{
     resp = await fetch(url);
@@ -2218,7 +2278,7 @@ async function fetchLiveNews(keyword){
   if(!resp.ok || !data || data.status !== 'success' || !Array.isArray(data.results)){
     throw new Error(errDetail || (data && data.message) || `newsdata.io error (${resp.status})`);
   }
-  return data.results.map(mapNewsdataArticle);
+  return data.results.map(mapNewsdataArticle).filter(isMarketsRelevant);
 }
 
 /* ==========================================================================
@@ -2336,48 +2396,121 @@ async function handleFileUpload(file){
    through the exact same merge pipeline a manual paste uses
    ========================================================================== */
 let isSearching = false;
+/* Single source of truth for the current search's results + which ones are
+   checked. renderSearchResults() rebuilds #searchModalBody's HTML from
+   scratch on every search, which would wipe any state living only in the
+   checkbox DOM nodes -- so selection lives here instead, and the DOM is
+   just a reflection of it. */
+let searchState = { keyword:'', articles:[], selected:new Set() };
+
 function openSearch(){
   $('#searchOverlay').classList.remove('hidden');
   $('#globalSearchInput').focus();
 }
 function closeSearch(){ $('#searchOverlay').classList.add('hidden'); }
 function renderSearchLoading(keyword){
-  $('#searchModalBody').innerHTML = `<div class="search-loading"><span class="spinner"></span>Pulling live coverage on \u201c${esc(keyword)}\u201d and structuring it\u2026</div>`;
+  $('#searchModalBody').innerHTML = `<div class="search-loading"><span class="spinner"></span>Pulling live finance/markets coverage on \u201c${esc(keyword)}\u201d\u2026</div>`;
 }
 function renderSearchError(msg){
   $('#searchModalBody').innerHTML = `<div class="search-empty">${esc(msg)}</div>`;
 }
-function renderSearchResults(keyword, articles, structured, foundCount){
-  let html = '';
-  if(foundCount > 0){
-    html += `<div class="search-applied-note">\u2713 Loaded ${foundCount} new signal${foundCount===1?'':'s'} into the terminal boards below</div>`;
-  }
-  const bullets = (structured && structured.summary && structured.summary.bullets) || [];
-  const headline = structured && structured.meta && structured.meta.headline;
-  if(headline || bullets.length){
-    html += `<div class="search-section-title">Live Synthesis</div>`;
-    if(headline) html += `<div class="search-synthesis-item" style="font-weight:600;color:var(--text)">${esc(headline)}</div>`;
-    html += bullets.map(b=>`<div class="search-synthesis-item">${esc(b)}</div>`).join('');
-  } else if(structured){
-    html += `<div class="search-section-title">Live Synthesis</div><div class="search-synthesis-item">Groq couldn\u2019t extract a clear structured synthesis for \u201c${esc(keyword)}\u201d \u2014 see the raw articles below.</div>`;
-  }
-  html += `<div class="search-section-title">Articles Found (${articles.length})</div>`;
+
+/* Shared with the old auto-summarize path this replaced -- same "Article N
+   — Source (date): title / description / content" framing Groq already
+   expects, just built from whichever articles the user picked rather than
+   the first 10 unconditionally. */
+function buildCombinedTextFromArticles(articles){
+  return articles.map((a,i)=>{
+    const srcName = (a.source && a.source.name) || 'Unknown';
+    return `Article ${i+1} \u2014 ${srcName} (${a.publishedAt||''}):\n${a.title||''}\n${a.description||''}\n${stripNewsApiTruncation(a.content||'')}`;
+  }).join('\n\n---\n\n');
+}
+
+function renderSearchResults(keyword, articles){
+  searchState = { keyword, articles, selected:new Set() };
+  let html = `<div class="search-select-bar">
+    <label class="search-select-all"><input type="checkbox" id="searchSelectAllBox"${articles.length? '' : ' disabled'}> Select all</label>
+    <span class="search-select-count" id="searchSelectCount">0 selected</span>
+    <button class="btn" id="searchAddToTerminalBtn" disabled>Add to Terminal</button>
+  </div>`;
+  html += `<div class="search-section-title">Finance &amp; Markets Articles (${articles.length})</div>`;
   if(!articles.length){
-    html += `<div class="search-empty">No recent articles found for \u201c${esc(keyword)}\u201d.</div>`;
+    html += `<div class="search-empty">No recent finance, markets, or geopolitics articles found for \u201c${esc(keyword)}\u201d \u2014 this terminal only surfaces market-relevant coverage, so try a broader or different term.</div>`;
   } else {
-    html += articles.map(a=>{
+    html += articles.map((a,i)=>{
       const desc = trimToCompleteSentences(a.description || a.content || '', 400);
       const srcName = (a.source && a.source.name) || 'Unknown Source';
-      return `<div class="search-article">
-        <div class="search-article-top"><span class="search-article-source">${esc(srcName)}</span><span class="search-article-time mono">${esc(fmtPublishedAt(a.publishedAt))}</span></div>
-        <div class="search-article-title">${esc(a.title||'')}</div>
-        ${desc? `<div class="search-article-desc">${esc(desc)}</div>` : ''}
-        ${a.url? `<a class="search-article-link" href="${esc(a.url)}" target="_blank" rel="noopener noreferrer">Read full article \u2192</a>` : ''}
+      return `<div class="search-article" data-article-idx="${i}">
+        <label class="search-article-check"><input type="checkbox" data-search-idx="${i}" aria-label="Select article ${i+1}"></label>
+        <div class="search-article-body">
+          <div class="search-article-top"><span class="search-article-source">${esc(srcName)}</span><span class="search-article-time mono">${esc(fmtPublishedAt(a.publishedAt))}</span></div>
+          <div class="search-article-title">${esc(a.title||'')}</div>
+          ${desc? `<div class="search-article-desc">${esc(desc)}</div>` : ''}
+          ${a.url? `<a class="search-article-link" href="${esc(a.url)}" target="_blank" rel="noopener noreferrer">Read full article \u2192</a>` : ''}
+        </div>
       </div>`;
     }).join('');
   }
   $('#searchModalBody').innerHTML = html;
 }
+
+function updateSearchSelectionUI(){
+  const n = searchState.selected.size;
+  const countEl = $('#searchSelectCount');
+  if(countEl) countEl.textContent = `${n} selected`;
+  const btn = $('#searchAddToTerminalBtn');
+  if(btn && !btn.classList.contains('is-adding')){
+    btn.disabled = (n===0) || isParsing;
+    btn.textContent = n>0 ? `Add to Terminal (${n})` : 'Add to Terminal';
+  }
+  const selectAll = $('#searchSelectAllBox');
+  if(selectAll) selectAll.checked = searchState.articles.length>0 && n===searchState.articles.length;
+}
+function toggleArticleSelection(idx, checked){
+  if(checked) searchState.selected.add(idx); else searchState.selected.delete(idx);
+  const card = document.querySelector(`.search-article[data-article-idx="${idx}"]`);
+  if(card) card.classList.toggle('search-article--selected', checked);
+  updateSearchSelectionUI();
+}
+function toggleSelectAllArticles(checked){
+  searchState.articles.forEach((_,i)=>{
+    searchState.selected[checked ? 'add' : 'delete'](i);
+    const box = document.querySelector(`input[data-search-idx="${i}"]`);
+    if(box) box.checked = checked;
+    const card = document.querySelector(`.search-article[data-article-idx="${i}"]`);
+    if(card) card.classList.toggle('search-article--selected', checked);
+  });
+  updateSearchSelectionUI();
+}
+async function addSelectedArticlesToTerminal(){
+  if(isParsing) return; // handleNewIntelligence would no-op anyway; bail before claiming success
+  const selected = searchState.articles.filter((_,i)=>searchState.selected.has(i));
+  if(!selected.length) return;
+  const btn = $('#searchAddToTerminalBtn');
+  if(btn){ btn.disabled = true; btn.classList.add('is-adding'); btn.textContent = 'Adding\u2026'; }
+  const n = selected.length;
+  const combinedText = buildCombinedTextFromArticles(selected);
+  const result = await handleNewIntelligence(combinedText, {
+    sourceLabel: `Live news: "${searchState.keyword}" (${n} selected article${n===1?'':'s'})`,
+    keepInput: true
+  });
+  if(btn) btn.classList.remove('is-adding');
+  const note = document.createElement('div');
+  if(result && result.success){
+    searchState.selected = new Set();
+    document.querySelectorAll('.search-article--selected').forEach(el=>el.classList.remove('search-article--selected'));
+    document.querySelectorAll('[data-search-idx]').forEach(el=>{ el.checked = false; });
+    note.className = 'search-applied-note';
+    note.textContent = `\u2713 Added ${n} article${n===1?'':'s'} \u2014 summarized via Groq and loaded into the terminal boards below`;
+  } else {
+    note.className = 'search-applied-note search-applied-note--error';
+    note.textContent = `Couldn\u2019t add those articles: ${(result && result.reason) || 'unknown error'}`;
+  }
+  const bar = document.querySelector('.search-select-bar');
+  if(bar && bar.parentNode) bar.parentNode.insertBefore(note, bar.nextSibling);
+  updateSearchSelectionUI();
+}
+
 async function runGlobalSearch(keyword){
   keyword = (keyword||'').trim();
   if(!keyword || isSearching) return;
@@ -2386,23 +2519,7 @@ async function runGlobalSearch(keyword){
   renderSearchLoading(keyword);
   try{
     const articles = await fetchLiveNews(keyword);
-    if(!articles.length){ renderSearchResults(keyword, [], null, 0); return; }
-    const combinedText = articles.slice(0,10).map((a,i)=>{
-      const srcName = (a.source && a.source.name) || 'Unknown';
-      return `Article ${i+1} \u2014 ${srcName} (${a.publishedAt||''}):\n${a.title||''}\n${a.description||''}\n${stripNewsApiTruncation(a.content||'')}`;
-    }).join('\n\n---\n\n');
-    let structured = null, foundCount = 0;
-    try{
-      const rawStructured = await summarizeWithGroq(combinedText, { keyword, sourceLabel: `Live news search: "${keyword}"` });
-      structured = normalizeDataset(rawStructured);
-      const merged = mergeWithPrevious(structured, dataset);
-      if(merged.foundCount > 0){
-        dataset = merged.data; isDemo = false; lastUpdatedAt = new Date();
-        lastFoundCount = merged.foundCount; lastEngine = 'groq'; foundCount = merged.foundCount;
-        renderAll(); persistDataset(dataset, false);
-      }
-    }catch(groqErr){ console.warn('Groq structuring failed for search', groqErr); }
-    renderSearchResults(keyword, articles, structured, foundCount);
+    renderSearchResults(keyword, articles);
   }catch(err){
     console.error(err);
     renderSearchError(err.message || 'Search failed \u2014 please try again.');
@@ -3123,8 +3240,8 @@ function clearError(){ $('#errorBanner').classList.add('hidden'); }
    ============================================================ */
 async function handleNewIntelligence(rawText, opts){
   opts = opts || {};
-  if(isParsing) return;
-  if(!rawText || rawText.trim().length < 20){ showError('That text looks too short to analyze — paste a fuller excerpt.'); return; }
+  if(isParsing) return { success:false, engine:null, foundCount:0, reason:'Already processing another update — please wait for it to finish.' };
+  if(!rawText || rawText.trim().length < 20){ showError('That text looks too short to analyze — paste a fuller excerpt.'); return { success:false, engine:null, foundCount:0, reason:'Text too short to analyze.' }; }
   isParsing = true;
   lastRawText = rawText;
   clearError();
@@ -3146,9 +3263,11 @@ async function handleNewIntelligence(rawText, opts){
     const fresh = normalizeDataset(rawExtracted);
     const { data, foundCount } = mergeWithPrevious(fresh, dataset);
     if(foundCount === 0){
-      showError(usedFallback
+      const reason = usedFallback
         ? `Groq was unavailable (${groqFailureReason}) and the local backup parser couldn\u2019t find recognizable market intelligence either — try different text.`
-        : 'Couldn\u2019t find any recognizable market intelligence in that text — try pasting a fuller excerpt.');
+        : 'Couldn\u2019t find any recognizable market intelligence in that text — try pasting a fuller excerpt.';
+      showError(reason);
+      return { success:false, engine:usedFallback?'local':null, foundCount:0, reason };
     } else {
       dataset = data;
       isDemo = false;
@@ -3166,10 +3285,13 @@ async function handleNewIntelligence(rawText, opts){
       } else if(lastPartialWarning){
         showError(lastPartialWarning, 'warn');
       }
+      return { success:true, engine:lastEngine, foundCount, reason:usedFallback?groqFailureReason:(lastPartialWarning||null) };
     }
   }catch(err){
     console.error(err);
-    showError(`Analysis failed: ${err && err.message ? err.message : 'unknown error'} -- please try again or open the browser console for the full detail.`);
+    const reason = `Analysis failed: ${err && err.message ? err.message : 'unknown error'} -- please try again or open the browser console for the full detail.`;
+    showError(reason);
+    return { success:false, engine:null, foundCount:0, reason };
   }finally{
     isParsing = false;
     $('#retryBtn').classList.remove('spin');
@@ -3258,6 +3380,19 @@ function wireEvents(){
     const card = e.target.closest('[data-detail-type]');
     if(card){
       openDetail(card.getAttribute('data-detail-type'), card.getAttribute('data-detail-id'));
+      return;
+    }
+    const searchCheck = e.target.closest('[data-search-idx]');
+    if(searchCheck){
+      toggleArticleSelection(parseInt(searchCheck.getAttribute('data-search-idx'),10), searchCheck.checked);
+      return;
+    }
+    if(e.target.closest('#searchSelectAllBox')){
+      toggleSelectAllArticles(e.target.checked);
+      return;
+    }
+    if(e.target.closest('#searchAddToTerminalBtn')){
+      addSelectedArticlesToTerminal();
       return;
     }
     if(e.target.closest('#detailClose') || e.target.id==='detailOverlay'){
