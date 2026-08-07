@@ -627,7 +627,7 @@ button{ font-family:inherit; }
   </section>
 
   <footer class="term-footer">
-    <span>Structured off-device via Groq · live search via NewsAPI</span>
+    <span>Structured off-device via Groq · live search via newsdata.io</span>
     <span id="footerRight">Ashford Capital — internal use</span>
   </footer>
 
@@ -728,13 +728,25 @@ const POS_DEFS = [
    move both calls behind a small backend/serverless proxy so the
    keys never ship to the client -- and rotate both keys at that
    point, since they've now been pasted into this file in plain
-   text. NEWS_API_BASE assumes a NewsAPI.org key (their keys are
-   32-character hex strings) -- if you're on a different provider,
-   only fetchLiveNews() below needs to change. NewsAPI's free
-   "Developer" plan also only allows browser requests from
-   localhost and delays articles ~24h -- errors from that plan are
-   surfaced as a specific message in fetchLiveNews() rather than a
-   generic failure.
+   text.
+
+   NEWS_API_BASE assumes a newsdata.io key (their keys start with
+   "pub_") -- migrated from NewsAPI.org because that key's free
+   "Developer" plan only allows browser requests from localhost,
+   which blocks it outright once this file is opened from
+   anywhere else. newsdata.io's free plan (200 credits/day, ~30
+   requests per 15 minutes, 10 articles/request, articles ~12h
+   delayed, no full article `content`) doesn't have that
+   restriction and its official client SDKs include a browser/
+   React one, which only makes sense if direct browser calls are
+   supported. If you move providers again, only fetchLiveNews()
+   and mapNewsdataArticle() below need to change -- everything
+   downstream (runGlobalSearch, renderSearchResults, the Groq
+   prompt) consumes a normalized {source:{name}, title,
+   description, content, url, publishedAt} shape that
+   mapNewsdataArticle() produces from whatever the provider
+   actually returns, so the rest of the file never needs to know
+   which news provider is behind it.
 
    On the AI side: this terminal was migrated off Gemini onto Groq
    (console.groq.com). Groq exposes one OpenAI-compatible REST
@@ -752,9 +764,9 @@ const POS_DEFS = [
    console.groq.com/keys.
    ============================================================ */
 const CONFIG = {
-  NEWS_API_KEY:   '2984934cdf28477fb4eccee3bdf6d197',
-  NEWS_API_BASE:  'https://newsapi.org/v2',
-  GROQ_API_KEY:   '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',
+  NEWS_API_KEY:   'pub_86e14d4a7b0f4f52b4356b98e57b98d5',
+  NEWS_API_BASE:  'https://newsdata.io/api/1',
+  GROQ_API_KEY:   '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',
   GROQ_MODEL:     'openai/gpt-oss-120b', // swap to 'openai/gpt-oss-20b' for a faster/cheaper option
   GROQ_BASE:      'https://api.groq.com/openai/v1/chat/completions',
   // How much pasted/uploaded source text gets sent to Groq per extraction
@@ -2151,24 +2163,62 @@ async function summarizeWithGroq(rawText, opts){
 }
 
 /* ==========================================================================
-   LIVE NEWS SEARCH \u2014 NewsAPI.org
+   LIVE NEWS SEARCH \u2014 newsdata.io
+   --------------------------------------------------------------------------
+   mapNewsdataArticle() is the ONLY place that needs to know newsdata.io's
+   response field names (results/link/pubDate/source_name/etc, confirmed
+   against newsdata.io's own docs blog and official SDKs as of mid-2026).
+   Everything else in this file -- runGlobalSearch(), renderSearchResults(),
+   stripNewsApiTruncation(), trimToCompleteSentences(), fmtPublishedAt() --
+   keeps consuming the same {source:{name}, title, description, content,
+   url, publishedAt} shape NewsAPI.org used to provide, so none of that
+   downstream logic changed.
    ========================================================================== */
+function mapNewsdataArticle(raw){
+  raw = raw || {};
+  let publishedAt = '';
+  if(raw.pubDate){
+    // newsdata.io returns "YYYY-MM-DD HH:MM:SS" (UTC, no explicit offset).
+    // new Date() parses that inconsistently across browsers (Safari in
+    // particular can reject the bare space-separated form), so normalize
+    // to ISO 8601 first.
+    const t = String(raw.pubDate).trim();
+    publishedAt = /[zZ]|[+-]\d\d:?\d\d$/.test(t) ? t : t.replace(' ', 'T') + 'Z';
+  }
+  return {
+    source: { name: raw.source_name || raw.source_id || 'Unknown Source' },
+    title: raw.title || '',
+    description: raw.description || '',
+    content: raw.content || '', // null on newsdata.io's free plan (full content is a paid feature) -- already handled, see the `a.description || a.content` fallback used wherever articles are read
+    url: raw.link || '',
+    publishedAt
+  };
+}
 async function fetchLiveNews(keyword){
-  const url = `${CONFIG.NEWS_API_BASE}/everything?q=${encodeURIComponent(keyword)}&language=en&sortBy=publishedAt&pageSize=10&apiKey=${CONFIG.NEWS_API_KEY}`;
+  // newsdata.io's free plan caps the q= search string at 100 characters;
+  // real search terms here are a few words, but guard it defensively.
+  const q = encodeURIComponent((keyword||'').slice(0, 100));
+  const url = `${CONFIG.NEWS_API_BASE}/latest?apikey=${CONFIG.NEWS_API_KEY}&q=${q}&language=en&size=10`;
   let resp;
   try{
     resp = await fetch(url);
   }catch(networkErr){
-    throw new Error('Could not reach NewsAPI from the browser \u2014 if this key is on the free Developer plan, it only allows requests from localhost, not a deployed domain.');
+    throw new Error('Could not reach newsdata.io from the browser \u2014 check your connection.');
   }
   const data = await resp.json().catch(()=>null);
-  if(data && data.code === 'corsNotAllowed'){
-    throw new Error('NewsAPI blocked this browser request \u2014 its free Developer plan only allows calls from localhost. Put this behind a backend proxy, or upgrade the plan, to search from a live domain.');
+  // newsdata.io error bodies look like {"status":"error","results":{"message":"..."}}
+  // -- note `results` becomes an OBJECT (not the usual article array) on error.
+  const errDetail = (data && data.status === 'error' && data.results && data.results.message) || '';
+  if(resp.status === 401 || resp.status === 403){
+    throw new Error(`newsdata.io rejected this API key (${resp.status})${errDetail ? ': '+errDetail : ''} \u2014 check CONFIG.NEWS_API_KEY and newsdata.io/dashboard for a valid key.`);
   }
-  if(!resp.ok || !data || data.status !== 'ok'){
-    throw new Error((data && data.message) || `NewsAPI error (${resp.status})`);
+  if(resp.status === 429){
+    throw new Error(`newsdata.io rate limit hit (429)${errDetail ? ': '+errDetail : ''} \u2014 the free plan allows 200 credits/day (~30 requests per 15 minutes); wait a bit and try again.`);
   }
-  return Array.isArray(data.articles) ? data.articles : [];
+  if(!resp.ok || !data || data.status !== 'success' || !Array.isArray(data.results)){
+    throw new Error(errDetail || (data && data.message) || `newsdata.io error (${resp.status})`);
+  }
+  return data.results.map(mapNewsdataArticle);
 }
 
 /* ==========================================================================
